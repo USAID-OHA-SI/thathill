@@ -25,6 +25,8 @@ graphs  <- "Graphics"
 goal <- 95
 pepfar_countries <- pepfar_country_list
 
+load_secrets("email")
+
 # load data ====================================================================  
 
 unaids <- read_sheet("1ZfxOScjuLnoGiXcsmfNnWn4EsqtxyFrvql8ERqdWSjk") %>%
