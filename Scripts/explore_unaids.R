@@ -56,7 +56,7 @@ unaids_filt <- unaids %>%
          indic_type == "Percent")
 
 # where are estimates for the 95s missing?
-missing_ests <- unaids_newvars %>%
+missing_ests <- unaids_filt %>%
   filter(is.na(estimate == TRUE))
 
 tab <- tabyl(missing_ests, country, indicator)
@@ -66,10 +66,9 @@ unaids_newvars <- unaids_filt %>%
   select(year, iso, country, indicator, age, sex, estimate) %>%
   group_by(country,year,indicator, age, sex) %>%
   mutate(
-    set = recode(indicator,
-                 "KNOWN_STATUS" = 1,
-                 "KNOWN_STATUS_ON_ART" = 2,
-                 "ON_ART_VLS" = 3),
+    indicator = as_factor(indicator), 
+    country = as_factor(country),
+    estimate = as.numeric(estimate),
     # col for achievement
     achieved = estimate >= goal,
     # Col for gap from achievment for OUs which have not met 95
@@ -102,10 +101,77 @@ unaids_newvars <- unaids_filt %>%
 
 # viz ==========================================================================
 
-# snapshot 2020 which ous met which goals?
-# facet by goal
+# in 2020, which ous met which goals?
+
 # 2020
+ggplot(unaids_newvars %>%
+         filter(year == 2021,) %>%
+         group_by(indicator) %>%
+         arrange(indicator, estimate) %>%
+         unite("ind_country", indicator, country, sep = "_", remove = FALSE) %>%
+         data.frame() %>%
+         mutate(
+           ind_country = factor(ind_country, levels = ind_country)) %>%
+         drop_na(estimate), 
+       aes(y = ind_country, x = estimate, fill = indicator)) +
+  geom_col() +
+  geom_vline(xintercept = 95, 
+             color = usaid_black,
+             linetype = "dotted", 
+             alpha = 0.9) +
+  annotate("text",
+            x = 95, y = 5,
+            label = "95%",
+            size = 3,
+            color = usaid_black) +
+  geom_text(aes(y = ind_country, x = estimate,
+                label = if_else(estimate >= 95.0, as.character(estimate), "")),
+            hjust = -0.4, vjust = 0.3,
+            position = position_jitter(width = -0.3),
+            size = 3) +
+  facet_wrap(~indicator, 
+             scales = "free") +
+  scale_fill_manual(
+    values = c(old_rose_light, burnt_sienna_light, genoa_light), 
+    labels = NULL) +
+  theme(strip.background = element_blank(), 
+        legend.position = "none") +
+  labs( 
+    x = NULL,
+    y = NULL,
+    color = NULL)
+
+
 # 2021
+ggplot(unaids_newvars %>%
+         filter(year == 2021), 
+       aes(x = estimate, y = country, group = indicator, fill = indicator)) +
+  geom_col() +
+  facet_wrap(~indicator, 
+             scales = "free_y")
 
 # what were the gaps from the goal in each OU in 2020 and 2021?
 # x = year, y = gap_from_goal, group (facet?) = country
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
