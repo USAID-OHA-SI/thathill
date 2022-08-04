@@ -16,6 +16,7 @@ library(janitor)
 library(ggplot2)
 library(googlesheets4)
 library(assertr)
+library(extrafont)
 
 # Set paths  
 data   <- "Data"
@@ -24,7 +25,7 @@ images  <- "Images"
 graphs  <- "Graphics"
 goal <- 95
 pepfar_countries <- pepfar_country_list
-
+loadfonts()
 load_secrets("email")
 
 # load data ====================================================================  
@@ -103,38 +104,32 @@ unaids_newvars <- unaids_filt %>%
 
 # viz ==========================================================================
 
-# in 2020, which ous met which goals?
+# in 2021, which ous met which goals?
 
-# 2020
+# 2021
 ggplot(unaids_newvars %>%
-         filter(year == 2021,) %>%
-         group_by(indicator) %>%
+         filter(year == 2021) %>%
          arrange(indicator, estimate) %>%
-         unite("ind_country", indicator, country, sep = "_", remove = FALSE) %>%
+         unite("ind_country", indicator, country, sep = "", remove = FALSE) %>%
          data.frame() %>%
          mutate(
-           ind_country = factor(ind_country, levels = ind_country)) %>%
+           ind_country = factor(ind_country, levels = ind_country),
+           indicator = factor(indicator, labels = c("KNOWN_STATUS" = "Know Their HIV Status", 
+                                                    "KNOWN_STATUS_ON_ART" = "On HIV Treatment", 
+                                                    "ON_ART_VLS" = "Virally Suppressed"))) %>%
          drop_na(estimate), 
        aes(y = ind_country, x = estimate, fill = indicator)) +
   geom_col() +
-  geom_vline(xintercept = 95, 
-             color = usaid_black,
-             linetype = "dotted", 
-             alpha = 0.9) +
-  annotate("text",
-            x = 95, y = 5,
-            label = "95%",
-            size = 3,
-            color = usaid_black) +
-  geom_text(aes(y = ind_country, x = estimate,
-                label = if_else(estimate >= 95.0, as.character(estimate), "")),
-            hjust = -0.4, vjust = 0.3,
-            position = position_jitter(width = -0.3),
-            size = 3) +
+  geom_text(aes(label = if_else(estimate >= 95.0, 
+                                as.character(estimate), "")),
+            position = position_stack(vjust = 0.5),
+            size = 3, 
+            color = "#FFFFFF") +
   facet_wrap(~indicator, 
              scales = "free") +
+  si_style_xgrid() +
   scale_fill_manual(
-    values = c(old_rose_light, burnt_sienna_light, genoa_light), 
+    values = c("#002e24", "#0D6C5F", "#5CAC9E"), 
     labels = NULL) +
   theme(strip.background = element_blank(), 
         legend.position = "none") +
@@ -143,17 +138,41 @@ ggplot(unaids_newvars %>%
     y = NULL,
     color = NULL)
 
-
-# 2021
-ggplot(unaids_newvars %>%
-         filter(year == 2021), 
-       aes(x = estimate, y = country, group = indicator, fill = indicator)) +
-  geom_col() +
-  facet_wrap(~indicator, 
-             scales = "free_y")
-
 # what were the gaps from the goal in each OU in 2020 and 2021?
 # x = year, y = gap_from_goal, group (facet?) = country
+
+ggplot(unaids_newvars %>%
+         filter(year == 2021) %>%
+         arrange(indicator, gap_from_goal) %>%
+         unite("ind_country", indicator, country, sep = "", remove = FALSE) %>%
+         data.frame() %>%
+         mutate(
+           # add column with row number for correct sorting sort by and use names from country
+           # num = row_number(),
+           ind_country = factor(ind_country, levels = ind_country),
+           indicator = factor(indicator, labels = c("KNOWN_STATUS" = "Know Their HIV Status", 
+                                                    "KNOWN_STATUS_ON_ART" = "On HIV Treatment", 
+                                                    "ON_ART_VLS" = "Virally Suppressed"))) %>%
+         drop_na(estimate), 
+       aes(y = ind_country, x = gap_from_goal, fill = indicator)) +
+  geom_col() +
+  geom_text(aes(label = if_else(gap_from_goal >= 50.0, 
+                                as.character(gap_from_goal), "")),
+            position = position_stack(vjust = 0.5),
+            size = 3, 
+            color = "#FFFFFF") +
+  facet_wrap(~indicator, 
+             scales = "free_y") +
+  si_style_nolines() +
+  scale_fill_manual(
+    values = c("#01564B", "#2D8073", "#5CAC9E"), 
+    labels = NULL) +
+  theme(strip.background = element_blank(), 
+        legend.position = "none") +
+  labs( 
+    x = NULL,
+    y = NULL,
+    color = NULL)
 
 
 
