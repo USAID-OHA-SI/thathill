@@ -31,6 +31,9 @@ load_secrets()
 # REF ID for plots
 ref_id <- "251b5696"
 
+# Cascade threshold
+thresh <- 95
+
 # load data ====================================================================  
 
 unaids <- read_sheet("1ZfxOScjuLnoGiXcsmfNnWn4EsqtxyFrvql8ERqdWSjk") %>%
@@ -146,8 +149,6 @@ ou_order_rhs_labs <- df_viz %>%
   distinct(ou_order)
 
 
-
-
 df_viz %>% 
   clean_countries("country") %>% 
   filter(year == ymax,
@@ -158,9 +159,9 @@ df_viz %>%
   geom_vline(xintercept = 95, linetype = "dotted") +
   geom_segment(aes(x = lb, xend = ub, yend = ou_order), size = 1, lineend = "butt",
                color = grey50k) +
-  #geom_point(aes(x = est, color = ifelse(est >= 95, scooter, old_rose))) +
+  geom_point(aes(x = est, color = ifelse(est >= 95, scooter, old_rose))) +
   facet_wrap(~ind_facet) +
-  #scale_color_identity() +
+  scale_color_identity() +
   scale_x_continuous(label = label_number(suffix = "%"))+
   si_style_xgrid() +
   labs(caption = glue::glue("UNAIDS 2022 Data | {ref_id}"), x = NULL, y = NULL,
@@ -197,7 +198,7 @@ df_viz %>%
     spread(ind_facet, est)
 
   set.seed(41)
-  mod_clust <-  kmeans(select(df_clust_error, -country), centers = 5, )    
+  mod_clust <-  kmeans(select(df_clust_error, -country), centers = 5)    
   summary(mod_clust)  
 
   library(broom)
@@ -234,7 +235,6 @@ df_viz %>%
     select(-country) %>% 
     prcomp(scale = T)
   
-  
   pca_fit %>%
     augment(df_clust_error) %>% # add original dataset back in
     ggplot(aes(.fittedPC1, .fittedPC2)) + 
@@ -251,7 +251,7 @@ df_viz %>%
   tmp
   
   # prep data for cluster dd
-  thresh <- 95
+
   df_dd <- df_3d %>% 
     column_to_rownames("country") %>% 
     select(-.cluster) %>% 
@@ -286,8 +286,6 @@ df_viz %>%
   
   
   library(dendextend)
- 
-  
   dend <- as.dendrogram(hc)
   plot(dend)
   dend2 <- cut(dend, h = 3)
