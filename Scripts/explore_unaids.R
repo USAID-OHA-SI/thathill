@@ -1,9 +1,9 @@
 # PROJECT: thathill
 # AUTHOR: J. Hoehner | USAID
-# PURPOSE: To mune and visualize achievement and gaps in UNAIDS 2021 data 
+# PURPOSE: To munge and visualize achievement and gaps in UNAIDS 2021 data 
 # REF ID:   15cbf641 
 # LICENSE: MIT
-# DATE: 2022-08-03
+# DATE: 2022-08-15
 # NOTES:
 
 # setup ========================================================================
@@ -12,6 +12,7 @@
 library(glamr)
 library(glitr)
 library(tidyverse)
+library(tidymodels)
 library(janitor)
 library(ggplot2)
 library(googlesheets4)
@@ -23,21 +24,26 @@ data   <- "Data"
 dataout <- "Dataout"
 images  <- "Images"
 graphs  <- "Graphics"
+ref_id <- "15cbf641"
 goal <- 95
 pepfar_countries <- pepfar_country_list
 loadfonts()
 load_secrets("email")
+set.seed(22315)
+ymax <- 2021
+ymin <- 2020
 
 # load data ====================================================================  
 
-unaids <- read_sheet("1ZfxOScjuLnoGiXcsmfNnWn4EsqtxyFrvql8ERqdWSjk") %>%
+# cascade
+cascade <- read_sheet("19oSbysX6FvMJ38--HBPE_eME4VlR2edAiYJHtZpK3as") %>%
   clean_names() 
 
 # verify that there are no differences in our team pepfar country 
 # list and data we have incldued as pepfar supported here
-peps_unaids <- unaids %>%
+peps_unaids <- cascade %>%
   filter(pepfar == "TRUE") %>%
-  select(country, iso)
+  select(country, iso3)
 
 # i expect that all countries listed as pepfar in the unaids data 
 # will be listed in pepfar_countries
@@ -48,138 +54,91 @@ verify(diff, length(diff) == 0)
 
 # munge ========================================================================
 
-# filter for year, age, sex, pepfar status, indicator, ind. type
-unaids_filt <- unaids %>%
-  filter(year %in% c("2020", "2021"), 
-         # PLHIV base
-         indicator %in% c("KNOWN_STATUS", "KNOWN_STATUS_ON_ART", "ON_ART_VLS"),
-         age == "All",
-         sex == "All",
+cascade_new <- cascade %>%
+  clean_countries("country") %>% 
+  filter(year == ymax,
+         sex == "all", 
+         age == "all", 
          pepfar == "TRUE", 
-         indic_type == "Percent")
-
-# where are estimates for the 95s missing?
-missing_ests <- unaids_filt %>%
-  filter(is.na(estimate == TRUE))
-
-tab <- tabyl(missing_ests, country, indicator)
-
-# add new variables
-unaids_newvars <- unaids_filt %>%
-  select(year, iso, country, indicator, age, sex, estimate) %>%
-  group_by(country,year,indicator, age, sex) %>%
+         cascade_mkr %in% c("1st 90", "2nd 90", "3rd 90")) %>%
+  group_by(country, year) %>%
   mutate(
-    indicator = as_factor(indicator), 
-    country = as_factor(country),
     estimate = as.numeric(estimate),
-    # col for achievement
-    achieved = estimate >= goal,
-    # Col for gap from achievment for OUs which have not met 95
-    gap_from_goal = as.numeric(
-      if_else(achieved == FALSE,
-              goal-estimate, 0)),
-    # new cols to indicate achievement on each 95
-    achieved_1 = as.numeric(if_else(
-      indicator == "KNOWN_STATUS" & achieved == TRUE, 
-      1, 0, missing = 999)),
-    achieved_2 = as.numeric(if_else(
-      indicator == "KNOWN_STATUS_ON_ART" & achieved == TRUE, 
-      1, 0, missing = 999)),
-    achieved_3 = as.numeric(if_else(
-      indicator == "ON_ART_VLS" & achieved == TRUE, 
-      1, 0, missing = 999)), 
-    # new cols to indicate achievement of more than 1 95
-    achieved_1_2 = as.numeric(if_else(
-      (indicator == "KNOWN_STATUS" & achieved_1 == 1) & 
-        (indicator == "KNOWN_STATUS_ON_ART" & achieved_2 == 1), 
-      1, 0, missing = 999)),
-    achieved_2_3 = as.numeric(if_else(
-      (indicator == "KNOWN_STATUS_ON_ART" & achieved_2 == 1) & 
-        (indicator == "ON_ART_VLS" & achieved_3 == 1), 
-      1, 0, missing = 999)),
-    achieved_1_3 = as.numeric(if_else(
-      (indicator == "KNOWN_STATUS" & achieved_1 == 1) & 
-        (indicator == "ON_ART_VLS" &  achieved_3 == 1), 
-      1, 0, missing = 999)))
+    # binary var. flagging OUs with complete cascade for 2021,
+    # 1 = has, 0 = doesn't
+    # TODO: add unit test
+    complete_cascade_count = sum(!is.na(estimate)),
+    complete_cascade = if_else(complete_cascade_count == 3, 1, 0),
+    ou_order_val = case_when(
+    indicator == "Percent Known Status of PLHIV" & 
+    year == ymax ~ estimate)) %>% 
+  filter(complete_cascade == 1) %>%
+  group_by(country) %>% 
+  fill(ou_order_val, .direction = "downup")
 
-# viz ==========================================================================
+# What if we incorporate an additional metric into the mix that captures how large
+# the error measurement is
 
-# in 2021, which ous met which goals?
+# % of error associated with country?
+# Let's start with a simple method, we'll take the point estimate - min value
 
-# 2021
-ggplot(unaids_newvars %>%
-         filter(year == 2021) %>%
-         arrange(indicator, estimate) %>%
-         unite("ind_country", indicator, country, sep = "", remove = FALSE) %>%
-         data.frame() %>%
-         mutate(
-           ind_country = factor(ind_country, levels = ind_country),
-           indicator = factor(indicator, labels = c("KNOWN_STATUS" = "Know Their HIV Status", 
-                                                    "KNOWN_STATUS_ON_ART" = "On HIV Treatment", 
-                                                    "ON_ART_VLS" = "Virally Suppressed"))) %>%
-         drop_na(estimate), 
-       aes(y = ind_country, x = estimate, fill = indicator)) +
-  geom_col() +
-  geom_text(aes(label = if_else(estimate >= 95.0, 
-                                as.character(estimate), "")),
-            position = position_stack(vjust = 0.5),
-            size = 3, 
-            color = "#FFFFFF") +
-  facet_wrap(~indicator, 
-             scales = "free") +
-  si_style_xgrid() +
-  scale_fill_manual(
-    values = c("#002e24", "#0D6C5F", "#5CAC9E"), 
-    labels = NULL) +
-  theme(strip.background = element_blank(), 
-        legend.position = "none") +
-  labs( 
-    x = NULL,
-    y = NULL,
-    color = NULL)
+# How do the OUs cluster?
+casc_clust <- cascade_new %>% 
+  mutate(
+    estimate = as.numeric(estimate),
+    error_var = as.numeric(estimate - lower_bound)) %>% 
+  select(country, indicator, estimate, error_var) 
 
-# what were the gaps from the goal in each OU in 2020 and 2021?
-# x = year, y = gap_from_goal, group (facet?) = country
+# Split table apart then reappend
+tmp1 <- casc_clust %>% 
+  select(country, indicator, estimate = error_var) %>% 
+  mutate(indicator = str_c(indicator, "_err"))
 
-ggplot(unaids_newvars %>%
-         filter(year == 2021) %>%
-         arrange(indicator, gap_from_goal) %>%
-         unite("ind_country", indicator, country, sep = "", remove = FALSE) %>%
-         data.frame() %>%
-         mutate(
-           # add column with row number for correct sorting sort by and use names from country
-           # num = row_number(),
-           ind_country = factor(ind_country, levels = ind_country),
-           indicator = factor(indicator, labels = c("KNOWN_STATUS" = "Know Their HIV Status", 
-                                                    "KNOWN_STATUS_ON_ART" = "On HIV Treatment", 
-                                                    "ON_ART_VLS" = "Virally Suppressed"))) %>%
-         drop_na(estimate), 
-       aes(y = ind_country, x = gap_from_goal, fill = indicator)) +
-  geom_col() +
-  geom_text(aes(label = if_else(gap_from_goal >= 50.0, 
-                                as.character(gap_from_goal), "")),
-            position = position_stack(vjust = 0.5),
-            size = 3, 
-            color = "#FFFFFF") +
-  facet_wrap(~indicator, 
-             scales = "free_y") +
-  si_style_nolines() +
-  scale_fill_manual(
-    values = c("#01564B", "#2D8073", "#5CAC9E"), 
-    labels = NULL) +
-  theme(strip.background = element_blank(), 
-        legend.position = "none") +
-  labs( 
-    x = NULL,
-    y = NULL,
-    color = NULL)
+casc_clust_error <- casc_clust %>% 
+  select(-error_var) %>% 
+  bind_rows(tmp1) %>% 
+  distinct() %>%
+  pivot_wider(names_from = indicator, values_from = estimate) %>%
+  clean_names() %>%
+  ungroup()
 
+casc_cluster <- casc_clust_error %>%
+  select(-country)
 
+# clustering ===================================================================
 
+# k-means
+mod_clust <- kmeans(casc_cluster, centers = 5)
+summary(mod_clust)
 
+tidied_clust <- tidy(mod_clust)
 
+# Augment back results to data
 
+augment(mod_clust, casc_clust_error) %>% 
+  ggplot(
+    aes(percent_known_status_of_plhiv-goal, 
+        percent_on_art_with_known_status-goal, 
+        color = .cluster)) + 
+  annotate("rect", fill = grey10k, xmin = -5, xmax = 5, 
+           ymin = -5, ymax = 5, alpha = 0.5) +
+  geom_vline(xintercept = -5, linetype = "dotted", color = glitr::grey40k) +
+  geom_hline(yintercept = -5, linetype = "dotted", color = glitr::grey40k) +
+  geom_point(aes(size = abs(percent_on_art_with_known_status-goal))) +
+  ggrepel::geom_text_repel(aes(label = country), size = 8/.pt) +
+  scale_size_binned() +
+  scale_color_discrete() +
+  si_style() +
+  labs(x = "Gap to Known Status Goal", y = "Gap to ART Goal", 
+       size = "Gap to VLS Goal",
+       color = "Cluster",
+       title = "SAMPLE CLUSTER ANALYSIS OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}")) +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE))
 
+# PCA with tidymodels workflow (full train/test split etc...)
+
+#ex https://juliasilge.com/blog/billboard-100/
 
 
 
