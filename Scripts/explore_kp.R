@@ -4,10 +4,12 @@
 # REF ID:   d1836592
 # LICENSE:  MIT
 # DATE CREATED: 2022-07-21
-# DATE UPDATED: 2022-08-01
+# DATE UPDATED: 2022-08-15
 
 # dependencies -----------------------------------------------------------------
 
+library(glamr)
+library(glitr)
 library(readr)
 library(janitor)
 library(tidyverse)
@@ -16,10 +18,14 @@ library(stringr)
 library(forcats)
 library(readxl)
 library(googlesheets4)
+library(extrafont)
+
+load_secrets()
 
 # global variables -------------------------------------------------------------
 
 ref_id <- "d1836592"
+options(scipen = 999)
 
 # inputs and outputs -----------------------------------------------------------
 
@@ -29,20 +35,33 @@ kp_findings = "lastmile/Scripts/global_story/outputs/kp_findings.csv")
 # munge ------------------------------------------------------------------------
 
 # read in indicator crosswalk data to further tidy data used
-indicator_crosswalk <- read_sheet("1P2D8_nUpONqQeg_cp9lLvlC6jXEySOwRK1RJ57_xRAc")
+indicator_crosswalk <- read_sheet("1P2D8_nUpONqQeg_cp9lLvlC6jXEySOwRK1RJ57_xRAc") %>%
+  clean_names()
 
-# - UNAIDS - old
-kp_data <- read_sheet("1KORmN23RjAKDz9yroJA5yn9csBOGBKDHKmK45JIs7tY") %>%
+# - KP data
+kp_data <- read_sheet("1KORmN23RjAKDz9yroJA5yn9csBOGBKDHKmK45JIs7tY")
+
+
+kp_tidier <- kp_data %>%
   clean_names() %>%
+  select(!starts_with("x")) %>%
   mutate(
     across(.cols = indicator:source, ~ as_factor(.))) %>%
   # keep only indicators of interest from crosswalk file
   filter(indicator %in% indicator_crosswalk$indicator) %>%
-  # join cols by indicator with crosswalk file to seperate population and 
+  # join cols by indicator with crosswalk file to separate population and 
   # indicator
   left_join(., indicator_crosswalk, 
             by = c("indicator")) %>%
   mutate(
+    # fix labeling in MSM, for some reason "Total" is called "All ages"
+    # only for this KP, I confirmed this by looking at COD, HIV prev. in MSM in 2019,
+    # the estimate reported as "Total" was the same as the estimate reported in this
+    # data as "All ages"
+    subgroup = as_factor(if_else(population == "men who have sex with men" 
+                                    & subgroup == "All ages", 
+                                    "Total",
+                                    as.character(subgroup))),
     # create a new col to keep track of sources of data
     source = str_c(source.x, source.y, sep = "|"), 
     # create a new col to tell if area provided is National or SubNational
@@ -54,55 +73,121 @@ kp_data <- read_sheet("1KORmN23RjAKDz9yroJA5yn9csBOGBKDHKmK45JIs7tY") %>%
          geo_level, area, area_id, data_value, unit, 
          time_period, source)
 
-# UNAIDS 2021 
+# EDA --------------------------------------------------------------------------
 
+# Let's say we want to make a scorecard for COD
+# What data are most recently available for that?
 
-# 14GBwcmAuGHETKknbJjeN1JkWSunpHcT4DvM3q4TlRIM
+kp_cod_recent <- kp_tidier %>%
+  filter(area_id == "COD", 
+         time_period == "2020")
 
-# Estimates by Year
-HIV20212_year <- read_sheet("1YRs60-EInZXq0sfruiaR2xow1Bda4eN1LXCndacrbE4",
-                          sheet = "HIV2022Estimates_ByYear") %>%
-  clean_names() 
+kp_table_1 <- tabyl(kp_cod_recent, population, indicator_new)
 
-# we may likely want complete population estimates by year for the national 
-# level estimates to get %s
+# For the year 2020 in COD, we have data from the following KPs: 
 
-# draft figures
+# "men who have sex with men", 5/6 indicators
+# "men who have sex with men living with HIV", 1/ 6 indicators
+# "people who inject drugs", 6/6 indicators
+# "prisoners", 2/6 indicators
+# "prisoners living with HIV"  , 1/ 6 indicators               
+# "sex workers", 6/6 indicators                              
+# "transgender people", 6/6 indicators
+
+# on the following indicators: 
+
+# Antiretroviral therapy coverage`, 5/7 pops listed above
+# Avoidance of health care because of stigma and discrimination`, 4/7 pops listed above
+# Coverage of HIV prevention programmes`, 4/7 pops listed above
+# HIV prevalence`, 5/7 pops listed above
+# HIV testing and status awareness`, 4/7 pops listed above
+# Population Size Estimate`, 5/7 pops listed above
+
+# Is this information available for all years?
+
+kp_cod_allyears <- kp_tidier %>%
+  filter(area_id == "COD")
+
+kp_table_2 <- tabyl(kp_cod_allyears, population, indicator_new, time_period)
+
+# data only available between 2011 and 2020, 
+# specifically only 2011, 2012, 2013, 2015, 2016, 2018, 2019, and 2020
+# available indicators also vary from year to year with data becoming 
+# more and more sparse as the years progress
+
+# draft figures ----------------------------------------------------------------
+  
+# population sizes: 
+# which years have population size estimates for each KP?
+cod_pop_data_allyrs <- kp_cod_allyears %>%
+  filter(indicator_new == "Population Size Estimate")
+
+cod_table <- tabyl(cod_pop_data_allyrs, time_period, population)
+# We only have data for 3 KPs for 3 of the same years 
+
+ggplot(cod_pop_data_allyrs, 
+       aes(y = data_value, 
+           x = time_period, 
+           fill = population)) +
+  geom_col() +
+  facet_wrap(~population) +
+  si_style_ygrid() +
+  scale_fill_manual(values = 
+  c("men who have sex with men" = moody_blue_light, 
+    "people who inject drugs" = scooter_light, 
+    "prisoners" = denim_light, 
+    "sex workers" = genoa_light), 
+    labels = NULL) +
+  theme(legend.position = "none") +
+  labs( 
+    x = NULL,
+    y = NULL,
+    fill = NULL, 
+    title = "Key population (KP) size estimates are unavailable or inconsistent from year to year",
+    subtitle = "Estimates are not available for all KPs of interest for all years, including most recent.",
+    caption = "Source: UNAIDS Key Population Atlas Database 2021 | refid: d1836592")
+
+si_save(here::here("Graphics/pop_size_ests_draft.png"))
 
 # prevention: 
 
-# what does prevention look like in the KPs we have so far?
+# what data do we have for prevention indicators?
 
-mini_prev_data <- kp_data %>%
-  filter(bucket == "prevention", 
-         geo_level == "National", 
-         # subgroup %in% c("Total", "All ages"), 
-         area_id %in% c("COD", "SSD"))
+# How much data do we have in the prevention bucket?
 
-# subgroup == "Total"
-# people who inject drugs 
-# prisoners
-# sex workers 
-# transgender people
+cod_prev_data <- kp_cod_allyears %>%
+  filter(bucket == "prevention",
+         subgroup %in% c("Total")) %>%
+  mutate(data_value = as.numeric(data_value)) %>%
+  filter(data_value > 0)
 
-# subgroup == "All ages" - can we change this to Total?
-# men who have sex with men
+# HIV prevalence, 2015 and 2019
+# only have matching estimates from 2015 for the groups shown, 
+# 2019 is the most recent year available for all groups
+# total or all ages, COD, 
+# only have data from 2020 for MSM, only have All ages data from 2019, no age breakdowns
+# don't have 2015 data for sex workers
 
-# also have age breakdowns for some groups, sex breakdowns for other groups
-
-# what is the prevalence of HIV among Key Pops in COD and SSD?
-
-ggplot(mini_prev_data, 
-       aes(x = population, 
-           y = data_value)) +
+ggplot(cod_prev_data, 
+       aes(x = time_period, 
+           y = data_value, 
+           fill = population)) +
   geom_col() +
-  facet_wrap(~area)
+  facet_wrap(~population) +
+  si_style_ygrid() +
+  scale_fill_manual(values = 
+                      c("men who have sex with men" = moody_blue_light, 
+                        "people who inject drugs" = scooter_light, 
+                        "prisoners" = denim_light, 
+                        "sex workers" = genoa_light), 
+                    labels = NULL) +
+  theme(legend.position = "none") +
+  labs( 
+    x = NULL,
+    y = NULL,
+    fill = NULL, 
+    title = "HIV prevalence estimates are unavailable or inconsistent from year to year",
+    subtitle = "Estimates are not available for all KPs of interest for all years, including most recent.",
+    caption = "Source: UNAIDS Key Population Atlas Database 2021 | refid: d1836592")
 
-# may not have all subgroups for all indicators for all populations 
-# in all geographies
-# Ex: Some areas may have "Total" or "All ages" data for some KPs and not others
-# do we want to weight these national estimates by population?
-# do we want to only keep countries in analysis which are USAID supported?
-
-
-
+si_save(here::here("Graphics/hiv_prev_ests_draft.png"))
