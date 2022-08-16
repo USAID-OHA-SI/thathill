@@ -13,11 +13,14 @@ library(glamr)
 library(glitr)
 library(tidyverse)
 library(tidymodels)
+library(tidytext)
 library(janitor)
 library(ggplot2)
 library(googlesheets4)
 library(assertr)
 library(extrafont)
+
+tidymodels_prefer()
 
 # Set paths  
 data   <- "Data"
@@ -27,7 +30,6 @@ graphs  <- "Graphics"
 ref_id <- "15cbf641"
 goal <- 95
 pepfar_countries <- pepfar_country_list
-loadfonts()
 load_secrets("email")
 set.seed(22315)
 ymax <- 2021
@@ -40,7 +42,7 @@ cascade <- read_sheet("19oSbysX6FvMJ38--HBPE_eME4VlR2edAiYJHtZpK3as") %>%
   clean_names() 
 
 # verify that there are no differences in our team pepfar country 
-# list and data we have incldued as pepfar supported here
+# list and data we have included as pepfar supported here
 peps_unaids <- cascade %>%
   filter(pepfar == "TRUE") %>%
   select(country, iso3)
@@ -102,13 +104,11 @@ casc_clust_error <- casc_clust %>%
   clean_names() %>%
   ungroup()
 
-casc_cluster <- casc_clust_error %>%
-  select(-country)
-
 # clustering ===================================================================
 
 # k-means
-mod_clust <- kmeans(casc_cluster, centers = 5)
+mod_clust <- kmeans(casc_clust_error %>%
+                      select(-country), centers = 5)
 summary(mod_clust)
 
 tidied_clust <- tidy(mod_clust)
@@ -136,22 +136,129 @@ augment(mod_clust, casc_clust_error) %>%
        caption = glue::glue("Source: UNAIDS 2022 | {ref_id}")) +
   guides(color = guide_legend(nrow = 2, byrow = TRUE))
 
-# PCA with tidymodels workflow (full train/test split etc...)
+# PCA
 
-#ex https://juliasilge.com/blog/billboard-100/
+# looking at the errors only suggests that there are 3 PCs:
+# PC1: countries which have met all cascade goals
+# PC2: countries which have met goal 2 but not 1 and 3
+# PC3: countries which have only met goal 1
 
+casc_clust_error_only <- casc_clust_error %>%
+  select(country, ends_with("_err"))
 
+pca_rec_err <- recipe(~., data = casc_clust_error_only) %>%
+  update_role(country, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
 
+pca_prep_err <- prep(pca_rec_err)
+tidied_pca_err <- tidy(pca_prep_err, 2)
 
+tidied_pca_err %>%
+  filter(component %in% paste0("PC", 1:5)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL)
 
+# looking at the errors only suggests that there are 3 PCs:
+# PC1: countries which have high errs on all cascade goals
+# PC2: countries which have not met/have high errs on goal 2 but not 1 and 3
+# PC3: countries which have not met/ have high errs on goal 1 only
+# We can see this when we look at a scatter plot too
+# I think it would be easier to interpet the ests directly
 
+# I would expect to see the same relationships in reverse
+# when we look at only the estimates directly, let's see if that holds: 
 
+casc_clust_ests <- casc_clust_error %>%
+  select(country, !ends_with("_err"))
 
+pca_rec_ests <- recipe(~., data = casc_clust_ests) %>%
+  update_role(country, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
 
+pca_prep_ests <- prep(pca_rec_ests)
+tidied_pca_ests <- tidy(pca_prep_ests, 2)
 
+tidied_pca_ests %>%
+  filter(component %in% paste0("PC", 1:3)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL)
 
+# Indeed we see the same relationships in the PCs here:
+# PC1: countries which have have high estimates on all goals
+# PC2: countries which have only met/have high ests on goals 1 and 3 and not 2
+# PC3: countries which have only met/have high ests goal 1
 
+# Zooming in on these components, which goals are contributing most
+# to each relationship?
 
+tidied_pca_ests %>%
+  filter(component %in% paste0("PC", 1:3)) %>%
+  group_by(component) %>%
+  top_n(3, abs(value)) %>%
+  ungroup() %>%
+  mutate(terms = reorder_within(terms, abs(value), component)) %>%
+  ggplot(aes(abs(value), terms, fill = value > 0)) +
+  geom_col() +
+  facet_wrap(~component, scales = "free_y") +
+  scale_y_reordered() +
+  labs(
+    x = "Absolute value of contribution",
+    y = NULL, fill = "Positive?"
+  )
 
+# PC1: we see that all goals are contributing equally. 
+# This makes sense because PC1 is about high estimates 
+# across all goals and we see that
 
+# PC2: we see that "Percent on Art with Known Status" (goal 2)
+# contributes the most and this makes sense because this
+# PC is all about having high estimates on 1 and 3 and not 2
 
+# PC3: we see that high estimates on goals 1 and 3 contribute 
+# the most to this PC and this makes sense because this describes
+# countries which have only met goal 1 and not goals 2 and 3, specifically 
+# not 3 which we would expect would be harder to meet if 2 is not met
+
+juice(pca_prep_ests) %>%
+  ggplot(aes(PC1, PC2, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "High Achievement Across All Goals", 
+       y = "High Achievement On Goals 1 and 3 only", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+juice(pca_prep_ests) %>%
+  ggplot(aes(PC2, PC3, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "High Achievement On Goals 1 and 3 only", 
+       y = "High Achievement On Goal 1 only", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+juice(pca_prep_ests) %>%
+  ggplot(aes(PC1, PC3, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "High Achievement Across All Goals", 
+       y = "High Achievement On Goal 1 only", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
