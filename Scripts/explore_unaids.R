@@ -88,17 +88,23 @@ cascade_new <- cascade %>%
 casc_clust <- cascade_new %>% 
   mutate(
     estimate = as.numeric(estimate),
-    error_var = as.numeric(estimate - lower_bound)) %>% 
-  select(country, indicator, estimate, error_var) 
+    error_var = as.numeric(estimate - lower_bound), 
+    gap_from_95 = as.numeric(estimate - goal)) %>% 
+  select(country, indicator, estimate, error_var, gap_from_95) 
 
 # Split table apart then reappend
 tmp1 <- casc_clust %>% 
   select(country, indicator, estimate = error_var) %>% 
   mutate(indicator = str_c(indicator, "_err"))
 
+tmp2 <- casc_clust %>% 
+  select(country, indicator, estimate = gap_from_95) %>% 
+  mutate(indicator = str_c(indicator, "_gap"))
+
 casc_clust_error <- casc_clust %>% 
-  select(-error_var) %>% 
+  select(-c(error_var, gap_from_95)) %>% 
   bind_rows(tmp1) %>% 
+  bind_rows(tmp2) %>% 
   distinct() %>%
   pivot_wider(names_from = indicator, values_from = estimate) %>%
   clean_names() %>%
@@ -155,12 +161,50 @@ pca_prep_err <- prep(pca_rec_err)
 tidied_pca_err <- tidy(pca_prep_err, 2)
 
 tidied_pca_err %>%
-  filter(component %in% paste0("PC", 1:5)) %>%
+  filter(component %in% paste0("PC", 1:3)) %>%
   mutate(component = fct_inorder(component)) %>%
   ggplot(aes(value, terms, fill = terms)) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~component, nrow = 1) +
-  labs(y = NULL)
+  labs(y = NULL) 
+
+juice(pca_prep_err) %>%
+  ggplot(aes(PC1, PC2, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none", 
+        axis.text.x =  NULL) +
+  labs(x = "High Achievement Across All 95S", 
+       y = "High Achievement On 1st and 3rd 95s", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+juice(pca_prep_err) %>%
+  ggplot(aes(PC2, PC3, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "High Achievement On Goals 1 and 3 only", 
+       y = "High Achievement On Goal 1 only", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+juice(pca_prep_err) %>%
+  ggplot(aes(PC1, PC3, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "High Achievement Across All Goals", 
+       y = "High Achievement On Goal 1 only", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
 
 # looking at the errors only suggests that there are 3 PCs:
 # PC1: countries which have high errs on all cascade goals
@@ -211,8 +255,7 @@ tidied_pca_ests %>%
   scale_y_reordered() +
   labs(
     x = "Absolute value of contribution",
-    y = NULL, fill = "Positive?"
-  )
+    y = NULL, fill = "Positive?")
 
 # PC1: we see that all goals are contributing equally. 
 # This makes sense because PC1 is about high estimates 
@@ -262,3 +305,69 @@ juice(pca_prep_ests) %>%
        y = "High Achievement On Goal 1 only", 
        title = "SAMPLE PCA OF 95s CASCADE",
        caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+# Let's look at the gaps from achievement and see how countries with similar gaps
+# cluster
+
+casc_clust_gap <- casc_clust_error %>%
+  select(country, ends_with("_gap"))
+
+pca_rec_gap <- recipe(~., data = casc_clust_gap ) %>%
+  update_role(country, new_role = "id") %>%
+  step_normalize(all_predictors()) %>%
+  step_pca(all_predictors())
+
+pca_prep_gap <- prep(pca_rec_gap)
+tidied_pca_gap <- tidy(pca_prep_gap, 2)
+
+tidied_pca_gap %>%
+  filter(component %in% paste0("PC", 1:3)) %>%
+  mutate(component = fct_inorder(component)) %>%
+  ggplot(aes(value, terms, fill = terms)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~component, nrow = 1) +
+  labs(y = NULL) 
+
+# PC1: The source of difference in this PC is a similarly (low) gap in achievement
+# PC2: Source of difference in this PC is the difference in gaps in achievement in 
+# 1st and 3rd 95s 
+# PC3: Source of difference is the difference in gaps in achievement in first 95 relative
+# to next two 95s
+
+juice(pca_prep_gap) %>%
+  ggplot(aes(PC1, PC2, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none", 
+        axis.text.x =  NULL) +
+  labs(x = "Gap In All 95s", 
+       y = "Gap in 1st and 3rd 95s", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+juice(pca_prep_gap) %>%
+  ggplot(aes(PC2, PC3, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "Gap in 1st and 3rd 95s", 
+       y = "Gap in 1st 95 compared to 2nd and 3rd 95s", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+juice(pca_prep_gap) %>%
+  ggplot(aes(PC1, PC3, label = country)) +
+  geom_text(check_overlap = TRUE, hjust = "inward", 
+            family = "Source Sans Pro") +
+  si_style() +
+  scale_fill_manual(labels = NULL) +
+  theme(legend.position = "none") +
+  labs(x = "Gap In All 95s", 
+       y = "Gap in 1st 95 compared to 2nd and 3rd 95s", 
+       title = "SAMPLE PCA OF 95s CASCADE",
+       caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
