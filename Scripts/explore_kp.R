@@ -13,6 +13,7 @@ library(glitr)
 library(readr)
 library(janitor)
 library(tidyverse)
+library(tidytext)
 library(skimr)
 library(stringr)
 library(forcats)
@@ -31,6 +32,8 @@ options(scipen = 999)
 
 outputs <- list(
 kp_findings = "lastmile/Scripts/global_story/outputs/kp_findings.csv")
+ymax = "2021"
+goal = 95
 
 # munge ------------------------------------------------------------------------
 
@@ -147,7 +150,7 @@ ggplot(cod_pop_data_allyrs,
     subtitle = "Estimates are not available for all KPs of interest for all years, including most recent.",
     caption = "Source: UNAIDS Key Population Atlas Database 2021 | refid: d1836592")
 
-si_save(here::here("Graphics/pop_size_ests_draft.png"))
+si_save(here::here("thathill/Graphics/pop_size_ests_draft.png"))
 
 # prevention: 
 
@@ -190,4 +193,114 @@ ggplot(cod_prev_data,
     subtitle = "Estimates are not available for all KPs of interest for all years, including most recent.",
     caption = "Source: UNAIDS Key Population Atlas Database 2021 | refid: d1836592")
 
-si_save(here::here("Graphics/hiv_prev_ests_draft.png"))
+si_save(here::here("thathill/Graphics/hiv_prev_ests_draft.png"))
+
+# What if we look at prevention in the UNAIDS data? ----------------------------
+unaids_prev <- read_sheet("1yrgS_ZbA3Q8diICkQnl9CdF-77hF8PKuQ9KGP7r6vGg")
+
+unaids_prev_all <- unaids_prev %>%
+  clean_names() %>%
+  filter(age == "all",
+         sex == "all",
+         pepfar == "TRUE") %>%
+  group_by(country, year, indicator)
+
+# How has prevalence changed over time in OUs with highest prev? 
+
+highest_prev_p_ous <- c("Botswana","Lesotho",
+                      "Namibia","South Africa", 
+                      "Zimbabwe","Eswatini","Zambia", 
+                      "Nigeria", "Ethiopia") 
+
+highest_inc_ous <- c("Botswana","Lesotho",
+                     "Namibia","South Africa", 
+                     "Zimbabwe","Eswatini","Zambia", 
+                     "Nigeria", "Ethiopia") 
+
+highest_inc_ous <- unaids_prev_all %>%
+  filter(year == 2021, 
+         indicator == "Incidence Per 1000") %>%
+  arrange(desc(estimate))
+
+
+unaids_prev_wide <- unaids_prev_all %>% 
+  filter(country %in% highest_prev_ous | 
+         country %in% highest_inc_ous) %>%
+  pivot_wider(names_from = indicator,
+              names_glue ="{indicator}_{.value}",
+              values_from = c(estimate, lower_bound, upper_bound)) %>%
+  clean_names() %>%
+  mutate(
+    across(starts_with(c("adult_hiv_prevalence_percent_", 
+                       "incidence_per_1000_")), 
+           ~as.numeric(.)), 
+    ou_order_val_prev = case_when(year == max(year) ~ 
+                               adult_hiv_prevalence_percent_estimate),
+    ou_order_val_inc = case_when(year == max(year) ~ 
+                                    adult_hiv_prevalence_percent_estimate))
+
+unaids_prev_wide %>%
+  ggplot(aes(x = year)) +
+  geom_ribbon(aes(ymax = adult_hiv_prevalence_percent_lower_bound, 
+                  ymin = adult_hiv_prevalence_percent_upper_bound), 
+              fill = denim_light, alpha = 1) +
+  geom_line(aes(y = adult_hiv_prevalence_percent_estimate), 
+              color = denim, 
+            size = 1) +
+  geom_area(aes(y = adult_hiv_prevalence_percent_lower_bound),
+              alpha = 0.1, 
+            fill = denim_light) +
+  geom_vline(xintercept = 2003, 
+             colour= denim, 
+             linetype = "longdash", alpha = 0.5) +
+  scale_x_continuous(breaks = seq(1990, 2020, 5)) +
+  scale_y_continuous(limits = c(0, 40),
+                     breaks = seq(0, 40, 10)) +
+  facet_wrap(~ reorder(country, ou_order_val_prev), 
+             ncol = 3) +
+  si_style_ygrid() +
+  theme(legend.position = "none") +
+  labs( 
+    x = NULL,
+    y = NULL,
+    fill = NULL, 
+    title = "HIV PREVALENCE (%) OVER TIME",
+    subtitle = "Nigeria and Ethiopia shown for comparison to OUs with >=10% HIV prevalence reported in 2021",
+    caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+si_save("thathill/Graphics/prevention_hivprev.svg")
+
+# How has incidence per 100k changed over time in OUs with highest rates?
+
+
+unaids_prev_wide %>%
+  ggplot(aes(x = year)) +
+  geom_ribbon(aes(ymax = incidence_per_1000_lower_bound, 
+                  ymin = incidence_per_1000_upper_bound), 
+              fill = denim_light, alpha = 1) +
+  geom_line(aes(y = incidence_per_1000_estimate), 
+            color = denim, 
+            size = 1) +
+  geom_area(aes(y = incidence_per_1000_lower_bound),
+            alpha = 0.1, 
+            fill = denim_light) +
+  geom_vline(xintercept = 2003, 
+             colour= denim, 
+             linetype = "longdash", alpha = 0.5) +
+  scale_x_continuous(breaks = seq(1990, 2020, 5)) +
+  scale_y_continuous(limits = c(0, 40),
+                     breaks = seq(0, 40, 10)) +
+  facet_wrap(~ reorder(country, ou_order_val_inc), 
+             ncol = 3) +
+  si_style_ygrid() +
+  theme(legend.position = "none") +
+  labs( 
+    x = NULL,
+    y = NULL,
+    fill = NULL, 
+    title = "HIV INCIDENCE PER 1000 PEOPLE OVER TIME",
+    subtitle = "Nigeria and Ethiopia shown for comparison to OUs with HIV incidence per 1000 people > 1.5 reported in 2021",
+    caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
+
+si_save("thathill/Graphics/prevention_hivincper1000.svg")
+  
