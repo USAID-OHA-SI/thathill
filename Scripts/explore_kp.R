@@ -4,7 +4,7 @@
 # REF ID:   d1836592
 # LICENSE:  MIT
 # DATE CREATED: 2022-07-21
-# DATE UPDATED: 2022-08-19
+# DATE UPDATED: 2022-08-22
 
 # dependencies -----------------------------------------------------------------
 
@@ -214,12 +214,9 @@ full_sparse_df %>%
         strip.text.y = element_blank(),
         axis.text = element_text(size = 8))
 
-# TODO: remove color legend
-
 #export
 si_save(glue("Images/KPAtlasfindings_{Sys.Date()}.png"),
         height = 10, width = 5.625)
-
 
 # How many unique national OUs are in the data?
 
@@ -375,25 +372,6 @@ ou_table_2019_pse <- as.data.frame(tabyl(complete_totals_2019_pse, area, populat
 # Kenya, Thailand, Ukraine, Canada, New Zealand, Venezuela (Bolivarian Republic of), 
 # Saint Lucia, Zambia, Gambia, South Sudan
 
-
-
-
-
-
-
-
-
-
-
-
-
-# are there breakdowns by age in sex in OUs for which we do not have total data?
-complete_totals <- kp_tidier %>%
-  filter(time_period == "2020", 
-         geo_level == "National",
-         subgroup == "Total",
-         indicator_new %in% c("Population Size Estimate", 
-                              "Coverage of HIV prevention programmes"))
 
 # Let's say we want to make a scorecard for COD
 # What data are most recently available for that?
