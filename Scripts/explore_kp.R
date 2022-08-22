@@ -4,7 +4,7 @@
 # REF ID:   d1836592
 # LICENSE:  MIT
 # DATE CREATED: 2022-07-21
-# DATE UPDATED: 2022-08-15
+# DATE UPDATED: 2022-08-19
 
 # dependencies -----------------------------------------------------------------
 
@@ -20,6 +20,12 @@ library(forcats)
 library(readxl)
 library(googlesheets4)
 library(extrafont)
+library(gophr)
+library(tidytext)
+library(patchwork)
+library(ggtext)
+library(glue)
+library(lubridate)
 
 load_secrets()
 
@@ -77,6 +83,317 @@ kp_tidier <- kp_data %>%
          time_period, source)
 
 # EDA --------------------------------------------------------------------------
+
+# of the population size ests and perecent coverage indicators, 
+# which OUs have complete data for all KPs for 2020? 
+# focusing especially on PEPFAR supported OUs
+
+# are there any years in which there are any OUs which have complete data for all 
+# kps?
+
+pepfar_countries <- pepfar_country_list
+
+complete_totals <- kp_tidier %>%
+  filter(geo_level == "National",
+         subgroup %in% c("Total", "estimate"),
+         time_period %in% c("2011", "2012", "2013", "2014", 
+                            "2015", "2016", "2017", "2018", 
+                            "2019", "2020"),
+         indicator_new %in% c("Population Size Estimate", 
+                              "Coverage of HIV prevention programmes"))
+
+# heatmap of kp data by ous and year
+
+complete_totals_pse <- complete_totals %>%
+  select(time_period, area, population, data_value) %>%
+  distinct() %>%
+  group_by(time_period, area, population) %>%
+  select(time_period, area, population) %>%
+  distinct()
+
+complete_totals_pse_tab <- tabyl(complete_totals_pse, 
+                                time_period, area, population)
+
+long_by_ou_msm <- pivot_longer(
+  as.data.frame(complete_totals_pse_tab[["men who have sex with men"]]), 
+             !time_period,
+             names_to = "OU", 
+             values_to = "n_ests") %>%
+  mutate(population = "MSM") %>%
+  filter(time_period %in% c("2011", "2012", "2013", "2014", 
+                            "2015", "2016", "2017", "2018", 
+                            "2019", "2020"), 
+         OU %in% complete_totals_pse$area)
+
+long_by_ou_pwid <- pivot_longer(
+  as.data.frame(complete_totals_pse_tab[["people who inject drugs"]]), 
+  !time_period,
+  names_to = "OU", 
+  values_to = "n_ests") %>%
+  mutate(population = "PWID") %>%
+  filter(time_period %in% c("2011", "2012", "2013", "2014", 
+                            "2015", "2016", "2017", "2018", 
+                            "2019", "2020"), 
+         OU %in% complete_totals_pse$area)
+
+long_by_ou_prisoners <- pivot_longer(
+  as.data.frame(complete_totals_pse_tab[["prisoners"]]), 
+  !time_period,
+  names_to = "OU", 
+  values_to = "n_ests") %>%
+  mutate(population = "Prisoners") %>%
+  filter(time_period %in% c("2011", "2012", "2013", "2014", 
+                            "2015", "2016", "2017", "2018", 
+                            "2019", "2020"), 
+         OU %in% complete_totals_pse$area)
+
+long_by_ou_sw <- pivot_longer(
+  as.data.frame(complete_totals_pse_tab[["sex workers"]]), 
+  !time_period,
+  names_to = "OU", 
+  values_to = "n_ests") %>%
+  mutate(population = "SW") %>%
+  filter(time_period %in% c("2011", "2012", "2013", "2014", 
+                            "2015", "2016", "2017", "2018", 
+                            "2019", "2020"), 
+         OU %in% complete_totals_pse$area)
+
+
+long_by_ou_tp <- pivot_longer(
+  as.data.frame(complete_totals_pse_tab[["transgender people"]]), 
+  !time_period,
+  names_to = "OU", 
+  values_to = "n_ests") %>%
+  mutate(population = "TP") %>%
+  filter(time_period %in% c("2011", "2012", "2013", "2014", 
+                            "2015", "2016", "2017", "2018", 
+                            "2019", "2020"), 
+         OU %in% complete_totals_pse$area)
+
+full_sparse_df <- long_by_ou_msm %>%
+  full_join(., long_by_ou_pwid, 
+            by = c("time_period", 
+                    "OU",
+                   "population", 
+                   "n_ests")) %>%
+  full_join(., long_by_ou_prisoners, 
+            by = c("time_period", 
+                   "OU",
+                   "population", 
+                   "n_ests")) %>%
+  full_join(., long_by_ou_sw, 
+            by = c("time_period", 
+                   "OU",
+                   "population", 
+                   "n_ests")) %>%
+  full_join(., long_by_ou_tp, 
+            by = c("time_period", 
+                   "OU",
+                   "population", 
+                   "n_ests"))
+
+full_sparse_df %>% 
+  filter(OU %in% pepfar_country_list$country) %>%
+  group_by(OU, population) %>%
+  mutate(sum = sum(n_ests)) %>%
+  ggplot(aes(time_period, fct_reorder(OU, sum))) +
+  geom_tile(aes(fill = n_ests), color = "white", alpha = .4, 
+            show.legend = FALSE) + 
+  facet_grid(~fct_reorder(population, sum, .desc = TRUE)) +
+  scale_x_discrete(position = "top") +
+  viridis::scale_fill_viridis(option = "D") +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = NULL, fill = NULL,
+       color = NULL,
+       fill = NULL,
+       title = "How Many Estimates Exist From Each PEPFAR supported OU for Each KP in Each Year? " %>% toupper,
+       subtitle = "A yellow box indicates an available estimate while a purple box indicates no estimate is available") +
+  si_style_nolines() +
+  theme(panel.spacing = unit(.4, "picas"),
+        strip.placement = "outside",
+        strip.text.y = element_blank(),
+        axis.text = element_text(size = 8))
+
+# TODO: remove color legend
+
+#export
+si_save(glue("Images/KPAtlasfindings_{Sys.Date()}.png"),
+        height = 10, width = 5.625)
+
+
+# How many unique national OUs are in the data?
+
+unique_ous <- complete_totals %>%
+  select(area, area_id) %>%
+  distinct() 
+# 159
+
+# how many pepfar supported OUs?
+pepfarunique_ous <- unique_ous %>%
+  drop_na(operatingunit)
+# 55
+
+# for PSE
+
+ou_table_pse <- as.data.frame(tabyl(complete_totals, time_period, population)) %>%
+  pivot_longer(!time_period, 
+               names_to = "population", values_to = "n_estimates") %>%
+  filter(n_estimates > 0) %>%
+  group_by(time_period, population)
+
+ggplot(ou_table_pse, 
+       aes(x = time_period, 
+           y = n_estimates, 
+           group = population, 
+           fill = population)) + 
+  geom_col() +
+  facet_wrap(~population) +
+  scale_fill_manual(values = c(old_rose_light, denim_light, golden_sand_light, 
+                                genoa_light, moody_blue_light)) +
+  si_style_ygrid() +
+  labs(
+    y = "Number of OUs with Population Size Estimate")
+
+# we can see that there is only at least one estimate available for any 
+# KP between 2011-2020
+# the maximum number of OUs represented for a given KP 
+# in a given year is 50 and this only occurs for 2016 and 2019 for PSEs for sex workers
+# In most years, for most KPs there are fewer than 30 OUs with PSE data for a
+# given year and KP so for most years we are only seeing PSE data for a given KP
+# for 30/159 = 19% of all OUs represented in the data and if we assume all 30 were 
+# pepfar supported OUs, that would still only be data from 54% of all pepfar 
+# supported OUs present in the data.
+
+# for coverage
+
+complete_totals_cov <- kp_tidier %>%
+  filter(geo_level == "National",
+         indicator_new %in% c("Coverage of HIV prevention programmes"))
+
+
+# Which ous have complete PSE data for all KPs?
+complete_totals_2020_pse <- complete_totals_2020 %>%
+  filter(indicator_new == "Population Size Estimate")
+
+ou_table_2020_pse <- as.data.frame(tabyl(complete_totals_2020_pse, area, population)) %>%
+  pivot_longer(!area, names_to = "population", values_to = "n_estimates") %>%
+  filter(n_estimates > 0) %>%
+  group_by(area) %>%
+  summarize(n_kps = sum(n_estimates)) %>%
+  filter(n_kps >= 5)
+
+complete_totals_2020 <- kp_tidier %>%
+  filter(time_period == "2020", 
+         geo_level == "National",
+         subgroup %in% c("Total", "estimate"),
+         indicator_new %in% c("Population Size Estimate", 
+                              "Coverage of HIV prevention programmes"))
+
+# Which ous have complete PSE data for all KPs?
+complete_totals_2020_pse <- complete_totals_2020 %>%
+  filter(indicator_new == "Population Size Estimate")
+  
+ou_table_2020_pse <- as.data.frame(tabyl(complete_totals_2020_pse, area, population)) %>%
+  pivot_longer(!area, names_to = "population", values_to = "n_estimates") %>%
+  filter(n_estimates > 0) %>%
+  group_by(area) %>%
+  summarize(n_kps = sum(n_estimates)) %>%
+  filter(n_kps >= 5)
+
+# no oUs have complete data for all KPs in 2020 (otherwise, n_kps would be >= 5 
+# since there are 5 KPs in this dataset,
+# the most any OU has is 4 and those are ony available for Nicaragua, 
+# Guatemala, Philippines, Côte d'Ivoire, Zambia 
+# those OUs which have pse data from 3 KPS include
+# Belarus,Malawi,Republic of Moldova Paraguay, Panama, Senegal, South Africa, Niger
+# those OUs which have pse data from 2 KPS include
+# Mauritania, Iran (Islamic Republic of), Lao People's Democratic Republic, Uruguay                         
+# Ukraine, and Eswatini
+# those OUs which have pse data from 1 KP include
+# Viet Nam, Estonia,Zimbabwe,Georgia,Brazil,Kazakhstan,Seychelles,Morocco,Nigeria,                     Albania   ,
+# Bulgaria,Chile,Democratic Republic of the Congo, Czechia, Germany,Dominican Republic,
+# Haiti,Togo,Thailand,Costa Rica 
+
+# which OUS have complete coverage data for all KPs in 2020?
+complete_totals_2020_cov <- complete_totals_2020 %>%
+  filter(indicator_new == "Coverage of HIV prevention programmes")
+
+ou_table_2020_cov <- as.data.frame(tabyl(complete_totals_2020_pse, area, population)) %>%
+  pivot_longer(!area, names_to = "population", values_to = "n_estimates") %>%
+  filter(n_estimates > 0) %>%
+  group_by(area) %>%
+  summarize(n_kps = sum(n_estimates)) %>%
+  filter(n_kps >= 5)
+
+# no oUs have complete data for all KPs in 2020 (otherwise, n_kps would be >= 5 
+# since there are 5 KPs in this dataset,
+# the most any OU has is 4 and those are ony available for Nicaragua, 
+# Guatemala, Philippines, Côte d'Ivoire, Zambia 
+# those OUs which have pse data from 3 KPS include
+# Belarus,Malawi,Republic of Moldova, Paraguay, Panama, Senegal, South Africa, Niger
+# those OUs which have pse data from 2 KPS include
+# Mauritania, Iran (Islamic Republic of), Lao People's Democratic Republic, Uruguay                         
+# Ukraine, and Eswatini
+# those OUs which have pse data from 1 KP include
+# Viet Nam, Estonia,Zimbabwe,Georgia,Brazil,Kazakhstan,Seychelles,Morocco,Nigeria,                     Albania   ,
+# Bulgaria,Chile,Democratic Republic of the Congo, Czechia, Germany,Dominican Republic,
+# Haiti,Togo,Thailand,Costa Rica 
+
+
+# What about 2019?
+complete_totals_2019 <- kp_tidier %>%
+  filter(time_period == "2019", 
+         geo_level == "National",
+         subgroup %in% c("Total", "estimate"),
+         indicator_new %in% c("Population Size Estimate", 
+                              "Coverage of HIV prevention programmes"))
+
+# Which ous have complete PSE data for all KPs?
+complete_totals_2019_pse <- complete_totals_2019 %>%
+  filter(indicator_new == "Population Size Estimate")
+
+ou_table_2019_pse <- as.data.frame(tabyl(complete_totals_2019_pse, area, population)) %>%
+  pivot_longer(!area, names_to = "population", values_to = "n_estimates") %>%
+  filter(n_estimates > 0) %>%
+  group_by(area) %>%
+  summarize(n_kps = sum(n_estimates)) %>%
+  filter(n_kps == 1)
+
+# no oUs have complete data for all KPs in 2019 (otherwise, n_kps would be >= 5 
+# since there are 5 KPs in this dataset,
+# the most any OU has is 4 and those are only available for
+# Guatemala, Philippines, Singapore, Lao People's Democratic Republic,
+# Dominican Republic, Mexico
+# those OUs which have pse data from 3 KPS include
+# Viet Nam, Indonesia, Colombia, Nigeria, Cambodia, Panama, Afghanistan, Bhutan, Mali
+# those OUs which have pse data from 2 KPS include
+# Belarus, Malawi, Zimbabwe, Uganda, Albania, Central African Republic, Mongolia, 
+# Papua New Guinea, Senegal, Namibia, Niger, Peru
+# those OUs which have pse data from 1 KP include
+# Iran (Islamic Republic of), Brazil, Kazakhstan, Seychelles, Morocco, 
+# United Republic of Tanzania, Chile, Uruguay, Côte d'Ivoire, Czechia, Haiti
+# Kenya, Thailand, Ukraine, Canada, New Zealand, Venezuela (Bolivarian Republic of), 
+# Saint Lucia, Zambia, Gambia, South Sudan
+
+
+
+
+
+
+
+
+
+
+
+
+
+# are there breakdowns by age in sex in OUs for which we do not have total data?
+complete_totals <- kp_tidier %>%
+  filter(time_period == "2020", 
+         geo_level == "National",
+         subgroup == "Total",
+         indicator_new %in% c("Population Size Estimate", 
+                              "Coverage of HIV prevention programmes"))
 
 # Let's say we want to make a scorecard for COD
 # What data are most recently available for that?
