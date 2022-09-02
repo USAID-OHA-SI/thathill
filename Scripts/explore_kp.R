@@ -4,7 +4,7 @@
 # REF ID:   d1836592
 # LICENSE:  MIT
 # DATE CREATED: 2022-07-21
-# DATE UPDATED: 2022-08-22
+# DATE UPDATED: 2022-09-02
 
 # dependencies -----------------------------------------------------------------
 
@@ -13,8 +13,6 @@ library(glitr)
 library(readr)
 library(janitor)
 library(tidyverse)
-library(tidytext)
-library(skimr)
 library(stringr)
 library(forcats)
 library(readxl)
@@ -41,23 +39,294 @@ kp_findings = "lastmile/Scripts/global_story/outputs/kp_findings.csv")
 ymax = "2021"
 goal = 95
 
+populate_sparse_df_notPLHIV <- function(df, indicator){
+  
+  complete_totals <- df %>%
+    filter(indicator_new == indicator) %>%
+    select(time_period, area, population, data_value) %>%
+    distinct() %>%
+    group_by(time_period, area, population) %>%
+    select(time_period, area, population) %>%
+    distinct()
+
+  complete_totals_tab <- tabyl(complete_totals, 
+                               time_period, area, population)
+  long_by_ou_msm <- pivot_longer(
+    as.data.frame(complete_totals_tab[["men who have sex with men"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "MSM") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+          OU %in% complete_totals$area)
+  
+  long_by_ou_pwid <- pivot_longer(
+    as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "PWID") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_prisoners <- pivot_longer(
+    as.data.frame(complete_totals_tab[["prisoners"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "Prisoners") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_sw <- pivot_longer(
+    as.data.frame(complete_totals_tab[["sex workers"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "SW") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_tp <- pivot_longer(
+    as.data.frame(complete_totals_tab[["transgender people"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "TP") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  full_sparse_df <- long_by_ou_msm %>%
+    full_join(., long_by_ou_pwid, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_prisoners, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_sw, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_tp, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests"))
+
+  return(full_sparse_df)
+}
+
+populate_sparse_df_notPLHIV_pnr <- function(df, indicator){
+  
+  complete_totals <- df %>%
+    filter(indicator_new == indicator) %>%
+    select(time_period, area, population, data_value) %>%
+    distinct() %>%
+    group_by(time_period, area, population) %>%
+    select(time_period, area, population) %>%
+    distinct()
+  
+  complete_totals_tab <- tabyl(complete_totals, 
+                               time_period, area, population)
+  long_by_ou_msm <- pivot_longer(
+    as.data.frame(complete_totals_tab[["men who have sex with men"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "MSM") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_pwid <- pivot_longer(
+    as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "PWID") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_sw <- pivot_longer(
+    as.data.frame(complete_totals_tab[["sex workers"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "SW") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_tp <- pivot_longer(
+    as.data.frame(complete_totals_tab[["transgender people"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "TP") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  full_sparse_df <- long_by_ou_msm %>%
+    full_join(., long_by_ou_pwid, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_sw, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_tp, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests"))
+  
+  return(full_sparse_df)
+}
+
+populate_sparse_df_PLHIV <- function(df, indicator){
+  
+  complete_totals <- df %>%
+    filter(indicator_new == indicator) %>%
+    select(time_period, area, population, data_value) %>%
+    distinct() %>%
+    group_by(time_period, area, population) %>%
+    select(time_period, area, population) %>%
+    distinct()
+  
+  complete_totals_tab <- tabyl(complete_totals, 
+                               time_period, area, population)
+  long_by_ou_msm <- pivot_longer(
+    as.data.frame(complete_totals_tab[["men who have sex with men living with HIV"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "MSM") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_pwid <- pivot_longer(
+    as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "PWID") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_prisoners <- pivot_longer(
+    as.data.frame(complete_totals_tab[["prisoners living with HIV"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "Prisoners") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_sw <- pivot_longer(
+    as.data.frame(complete_totals_tab[["sex workers"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "SW") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  long_by_ou_tp <- pivot_longer(
+    as.data.frame(complete_totals_tab[["transgender people"]]), 
+    !time_period,
+    names_to = "OU", 
+    values_to = "n_ests") %>%
+    mutate(population = "TP") %>%
+    filter(time_period %in% c("2016", "2017", "2018", 
+                              "2019", "2020"),
+           OU %in% complete_totals$area)
+  
+  full_sparse_df <- long_by_ou_msm %>%
+    full_join(., long_by_ou_pwid, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_prisoners, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_sw, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests")) %>%
+    full_join(., long_by_ou_tp, 
+              by = c("time_period", 
+                     "OU",
+                     "population", 
+                     "n_ests"))
+  
+  return(full_sparse_df)
+}
+
+missing_data_heatmap <- function(df, title){
+  
+  df %>%
+    group_by(OU, population) %>%
+    mutate(sum = sum(n_ests)) %>%
+    ggplot(aes(time_period, fct_reorder(OU, sum))) +
+    geom_tile(aes(fill = n_ests), color = "white", alpha = .4, 
+              show.legend = FALSE) + 
+    facet_grid(~fct_reorder(population, sum, .desc = TRUE)) +
+    scale_x_discrete(position = "top") +
+    viridis::scale_fill_viridis(option = "D") +
+    theme(legend.position = "none") +
+    labs(x = NULL, y = NULL, fill = NULL,
+         color = NULL,
+         fill = NULL,
+         title = title %>% toupper,
+         caption = glue("J. Hoehner, Office of HIV/AIDS | UNAIDS KP Atlas Database 2021 | {ref_id} "),
+         subtitle = "A yellow box indicates an available estimate while a purple box indicates no estimate is available") +
+    si_style_nolines() +
+    theme(panel.spacing = unit(.4, "picas"),
+          strip.placement = "outside",
+          strip.text.y = element_blank(),
+          axis.text = element_text(size = 8))
+  
+}
+
 # munge ------------------------------------------------------------------------
 
 # read in indicator crosswalk data to further tidy data used
-indicator_crosswalk <- read_sheet("1P2D8_nUpONqQeg_cp9lLvlC6jXEySOwRK1RJ57_xRAc") %>%
+indicator_crosswalk <- read_sheet("1iv5aBHXSqO2Ky4d6zEORl2KwL_7_08w_D0CSTKgoq0A") %>%
   clean_names()
 
 # - KP data
 kp_data <- read_sheet("1KORmN23RjAKDz9yroJA5yn9csBOGBKDHKmK45JIs7tY")
-
-
+  
 kp_tidier <- kp_data %>%
   clean_names() %>%
   select(!starts_with("x")) %>%
   mutate(
     across(.cols = indicator:source, ~ as_factor(.))) %>%
-  # keep only indicators of interest from crosswalk file
-  filter(indicator %in% indicator_crosswalk$indicator) %>%
+  filter(indicator %in% indicator_crosswalk$indicator, 
+         area_id %in% pepfar_countries$country_iso) %>%
   # join cols by indicator with crosswalk file to separate population and 
   # indicator
   left_join(., indicator_crosswalk, 
@@ -77,10 +346,21 @@ kp_tidier <- kp_data %>%
     geo_level = as.character(
       if_else(str_length(area_id) == 3, 
               "National", "Subnational"))) %>%
+  filter(geo_level == "National",
+         time_period %in% c("2016", "2017", "2018","2019", "2020"),
+         indicator_new %in% c("Population Size Estimate", 
+                              "Coverage of HIV prevention programmes",
+                              "Antiretroviral therapy coverage",
+                              "HIV testing and status awareness",
+                              "HIV prevalence")) %>%
+  mutate(data_value = as.numeric(data_value)) %>%
   # rearrange the columns, keep only cols of interest
   select(bucket, indicator_new, population, subgroup, 
          geo_level, area, area_id, data_value, unit, 
          time_period, source)
+
+write_sheet(kp_tidier, "1Jxj2PlJKSr_LrU2uNs-DBtl-6hwmzaha6Gg6wDQuAxw", 
+            "kp_tidier")
 
 # EDA --------------------------------------------------------------------------
 
@@ -88,139 +368,9 @@ kp_tidier <- kp_data %>%
 # which OUs have complete data for all KPs for 2020? 
 # focusing especially on PEPFAR supported OUs
 
-# are there any years in which there are any OUs which have complete data for all 
-# kps?
-
-pepfar_countries <- pepfar_country_list
-
-complete_totals <- kp_tidier %>%
-  filter(geo_level == "National",
-         subgroup %in% c("Total", "estimate"),
-         time_period %in% c("2011", "2012", "2013", "2014", 
-                            "2015", "2016", "2017", "2018", 
-                            "2019", "2020"),
-         indicator_new %in% c("Population Size Estimate", 
-                              "Coverage of HIV prevention programmes"))
-
-# heatmap of kp data by ous and year
-
-complete_totals_pse <- complete_totals %>%
-  select(time_period, area, population, data_value) %>%
-  distinct() %>%
-  group_by(time_period, area, population) %>%
-  select(time_period, area, population) %>%
-  distinct()
-
-complete_totals_pse_tab <- tabyl(complete_totals_pse, 
-                                time_period, area, population)
-
-long_by_ou_msm <- pivot_longer(
-  as.data.frame(complete_totals_pse_tab[["men who have sex with men"]]), 
-             !time_period,
-             names_to = "OU", 
-             values_to = "n_ests") %>%
-  mutate(population = "MSM") %>%
-  filter(time_period %in% c("2011", "2012", "2013", "2014", 
-                            "2015", "2016", "2017", "2018", 
-                            "2019", "2020"), 
-         OU %in% complete_totals_pse$area)
-
-long_by_ou_pwid <- pivot_longer(
-  as.data.frame(complete_totals_pse_tab[["people who inject drugs"]]), 
-  !time_period,
-  names_to = "OU", 
-  values_to = "n_ests") %>%
-  mutate(population = "PWID") %>%
-  filter(time_period %in% c("2011", "2012", "2013", "2014", 
-                            "2015", "2016", "2017", "2018", 
-                            "2019", "2020"), 
-         OU %in% complete_totals_pse$area)
-
-long_by_ou_prisoners <- pivot_longer(
-  as.data.frame(complete_totals_pse_tab[["prisoners"]]), 
-  !time_period,
-  names_to = "OU", 
-  values_to = "n_ests") %>%
-  mutate(population = "Prisoners") %>%
-  filter(time_period %in% c("2011", "2012", "2013", "2014", 
-                            "2015", "2016", "2017", "2018", 
-                            "2019", "2020"), 
-         OU %in% complete_totals_pse$area)
-
-long_by_ou_sw <- pivot_longer(
-  as.data.frame(complete_totals_pse_tab[["sex workers"]]), 
-  !time_period,
-  names_to = "OU", 
-  values_to = "n_ests") %>%
-  mutate(population = "SW") %>%
-  filter(time_period %in% c("2011", "2012", "2013", "2014", 
-                            "2015", "2016", "2017", "2018", 
-                            "2019", "2020"), 
-         OU %in% complete_totals_pse$area)
-
-
-long_by_ou_tp <- pivot_longer(
-  as.data.frame(complete_totals_pse_tab[["transgender people"]]), 
-  !time_period,
-  names_to = "OU", 
-  values_to = "n_ests") %>%
-  mutate(population = "TP") %>%
-  filter(time_period %in% c("2011", "2012", "2013", "2014", 
-                            "2015", "2016", "2017", "2018", 
-                            "2019", "2020"), 
-         OU %in% complete_totals_pse$area)
-
-full_sparse_df <- long_by_ou_msm %>%
-  full_join(., long_by_ou_pwid, 
-            by = c("time_period", 
-                    "OU",
-                   "population", 
-                   "n_ests")) %>%
-  full_join(., long_by_ou_prisoners, 
-            by = c("time_period", 
-                   "OU",
-                   "population", 
-                   "n_ests")) %>%
-  full_join(., long_by_ou_sw, 
-            by = c("time_period", 
-                   "OU",
-                   "population", 
-                   "n_ests")) %>%
-  full_join(., long_by_ou_tp, 
-            by = c("time_period", 
-                   "OU",
-                   "population", 
-                   "n_ests"))
-
-full_sparse_df %>% 
-  filter(OU %in% pepfar_country_list$country) %>%
-  group_by(OU, population) %>%
-  mutate(sum = sum(n_ests)) %>%
-  ggplot(aes(time_period, fct_reorder(OU, sum))) +
-  geom_tile(aes(fill = n_ests), color = "white", alpha = .4, 
-            show.legend = FALSE) + 
-  facet_grid(~fct_reorder(population, sum, .desc = TRUE)) +
-  scale_x_discrete(position = "top") +
-  viridis::scale_fill_viridis(option = "D") +
-  theme(legend.position = "none") +
-  labs(x = NULL, y = NULL, fill = NULL,
-       color = NULL,
-       fill = NULL,
-       title = "How Many Estimates Exist From Each PEPFAR supported OU for Each KP in Each Year? " %>% toupper,
-       subtitle = "A yellow box indicates an available estimate while a purple box indicates no estimate is available") +
-  si_style_nolines() +
-  theme(panel.spacing = unit(.4, "picas"),
-        strip.placement = "outside",
-        strip.text.y = element_blank(),
-        axis.text = element_text(size = 8))
-
-#export
-si_save(glue("Images/KPAtlasfindings_{Sys.Date()}.png"),
-        height = 10, width = 5.625)
-
 # How many unique national OUs are in the data?
 
-unique_ous <- complete_totals %>%
+unique_ous <- kp_tidier %>%
   select(area, area_id) %>%
   distinct() 
 # 159
@@ -232,7 +382,7 @@ pepfarunique_ous <- unique_ous %>%
 
 # for PSE
 
-ou_table_pse <- as.data.frame(tabyl(complete_totals, time_period, population)) %>%
+ou_table_pse <- as.data.frame(tabyl(kp_tidier, time_period, population)) %>%
   pivot_longer(!time_period, 
                names_to = "population", values_to = "n_estimates") %>%
   filter(n_estimates > 0) %>%
@@ -267,7 +417,6 @@ complete_totals_cov <- kp_tidier %>%
   filter(geo_level == "National",
          indicator_new %in% c("Coverage of HIV prevention programmes"))
 
-
 # Which ous have complete PSE data for all KPs?
 complete_totals_2020_pse <- complete_totals_2020 %>%
   filter(indicator_new == "Population Size Estimate")
@@ -301,15 +450,6 @@ ou_table_2020_pse <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
 # since there are 5 KPs in this dataset,
 # the most any OU has is 4 and those are ony available for Nicaragua, 
 # Guatemala, Philippines, Côte d'Ivoire, Zambia 
-# those OUs which have pse data from 3 KPS include
-# Belarus,Malawi,Republic of Moldova Paraguay, Panama, Senegal, South Africa, Niger
-# those OUs which have pse data from 2 KPS include
-# Mauritania, Iran (Islamic Republic of), Lao People's Democratic Republic, Uruguay                         
-# Ukraine, and Eswatini
-# those OUs which have pse data from 1 KP include
-# Viet Nam, Estonia,Zimbabwe,Georgia,Brazil,Kazakhstan,Seychelles,Morocco,Nigeria,                     Albania   ,
-# Bulgaria,Chile,Democratic Republic of the Congo, Czechia, Germany,Dominican Republic,
-# Haiti,Togo,Thailand,Costa Rica 
 
 # which OUS have complete coverage data for all KPs in 2020?
 complete_totals_2020_cov <- complete_totals_2020 %>%
@@ -326,16 +466,6 @@ ou_table_2020_cov <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
 # since there are 5 KPs in this dataset,
 # the most any OU has is 4 and those are ony available for Nicaragua, 
 # Guatemala, Philippines, Côte d'Ivoire, Zambia 
-# those OUs which have pse data from 3 KPS include
-# Belarus,Malawi,Republic of Moldova, Paraguay, Panama, Senegal, South Africa, Niger
-# those OUs which have pse data from 2 KPS include
-# Mauritania, Iran (Islamic Republic of), Lao People's Democratic Republic, Uruguay                         
-# Ukraine, and Eswatini
-# those OUs which have pse data from 1 KP include
-# Viet Nam, Estonia,Zimbabwe,Georgia,Brazil,Kazakhstan,Seychelles,Morocco,Nigeria,                     Albania   ,
-# Bulgaria,Chile,Democratic Republic of the Congo, Czechia, Germany,Dominican Republic,
-# Haiti,Togo,Thailand,Costa Rica 
-
 
 # What about 2019?
 complete_totals_2019 <- kp_tidier %>%
@@ -361,17 +491,6 @@ ou_table_2019_pse <- as.data.frame(tabyl(complete_totals_2019_pse, area, populat
 # the most any OU has is 4 and those are only available for
 # Guatemala, Philippines, Singapore, Lao People's Democratic Republic,
 # Dominican Republic, Mexico
-# those OUs which have pse data from 3 KPS include
-# Viet Nam, Indonesia, Colombia, Nigeria, Cambodia, Panama, Afghanistan, Bhutan, Mali
-# those OUs which have pse data from 2 KPS include
-# Belarus, Malawi, Zimbabwe, Uganda, Albania, Central African Republic, Mongolia, 
-# Papua New Guinea, Senegal, Namibia, Niger, Peru
-# those OUs which have pse data from 1 KP include
-# Iran (Islamic Republic of), Brazil, Kazakhstan, Seychelles, Morocco, 
-# United Republic of Tanzania, Chile, Uruguay, Côte d'Ivoire, Czechia, Haiti
-# Kenya, Thailand, Ukraine, Canada, New Zealand, Venezuela (Bolivarian Republic of), 
-# Saint Lucia, Zambia, Gambia, South Sudan
-
 
 # Let's say we want to make a scorecard for COD
 # What data are most recently available for that?
@@ -598,4 +717,70 @@ unaids_prev_wide %>%
     caption = glue::glue("Source: UNAIDS 2022 | {ref_id}"))
 
 si_save("thathill/Graphics/prevention_hivincper1000.svg")
+
+# are there any years in which there are any OUs which have complete data for all 
+# kps?
+# heatmap of kp data by ous and year
+
+# population size estimate
+sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                             indicator = "Population Size Estimate")
+sparse_df_pse %>% 
+  missing_data_heatmap(., 
+                       "How Many Poulation Size Estimates Exist From PEPFAR supported OUs
+ with available KP data in the previous 5 years?")
+
+si_save(glue("Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# HIV prevalence
+sparse_df_hivprev <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                                 indicator = "HIV prevalence")
+
+sparse_df_hivprev %>% 
+  missing_data_heatmap(., 
+                       "How Many HIV Prevalence Estimates Exist From PEPFAR supported OUs
+with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_HIV prevalence_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# Antiretroviral therapy coverage
+sparse_df_artcov <- populate_sparse_df_PLHIV(df = kp_tidier, 
+                                             indicator = "Antiretroviral therapy coverage")
+sparse_df_artcov %>% 
+  missing_data_heatmap(., 
+                       "How Many Antiretroviral therapy coverage Estimates Exist 
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_ARTcoverage_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# coverage of HIV prevention programs
+sparse_df_hivcov <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
+                                                    indicator = "Coverage of HIV prevention programmes")
+
+sparse_df_hivcov %>% 
+  missing_data_heatmap(., 
+                       "How Many Estimates Exist for Coverage of HIV prevention programmes
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_HIVprogcoverage_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# HIV testing and status awareness
+
+sparse_df_1st90 <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
+                                                   indicator = "HIV testing and status awareness")
+sparse_df_1st90 %>% 
+  missing_data_heatmap(., 
+                       "How Many HIV testing and status awareness Estimates Exist 
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_1st90_{Sys.Date()}.png"),
+        height = 10, width = 10)
   
