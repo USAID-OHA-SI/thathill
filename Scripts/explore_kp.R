@@ -4,7 +4,7 @@
 # REF ID:   d1836592
 # LICENSE:  MIT
 # DATE CREATED: 2022-07-21
-# DATE UPDATED: 2022-09-07
+# DATE UPDATED: 2022-10-03
 
 # dependencies -----------------------------------------------------------------
 
@@ -301,8 +301,9 @@ missing_data_heatmap <- function(df, title){
          color = NULL,
          fill = NULL,
          title = title %>% toupper,
-         caption = glue("J. Hoehner, Office of HIV/AIDS | UNAIDS KP Atlas Database 2021 | {ref_id} "),
-         subtitle = "A yellow box indicates an available estimate while a purple box indicates no estimate is available") +
+         caption = glue("J. Hoehner, SI Analytics | UNAIDS KP Atlas Database 2021 | {ref_id} "),
+         subtitle = "A yellow box indicates an available estimate from the previous 5 years 
+         (2016 - 2020) while a purple box indicates no estimate is available for the previous 5 years") +
     si_style_nolines() +
     theme(panel.spacing = unit(.4, "picas"),
           strip.placement = "outside",
@@ -388,7 +389,6 @@ ou_table_2020_pse <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
   group_by(area) %>%
   summarize(n_kps = sum(n_estimates))
 
-
 # which OUS have complete coverage data for all KPs in 2020?
 complete_totals_2020_cov <- complete_totals_2020 %>%
   filter(time_period == "2020",
@@ -414,9 +414,9 @@ unaids_prev_all <- unaids_prev %>%
 # How has prevalence changed over time in OUs with highest prev? 
 
 highest_prev_p_ous <- c("Botswana","Lesotho",
-                      "Namibia","South Africa", 
-                      "Zimbabwe","Eswatini","Zambia", 
-                      "Nigeria", "Ethiopia") 
+                        "Namibia","South Africa", 
+                        "Zimbabwe","Eswatini","Zambia", 
+                        "Nigeria", "Ethiopia") 
 
 highest_inc_ous <- c("Botswana","Lesotho",
                      "Namibia","South Africa", 
@@ -428,22 +428,21 @@ highest_inc_ous <- unaids_prev_all %>%
          indicator == "Incidence Per 1000") %>%
   arrange(desc(estimate))
 
-
 unaids_prev_wide <- unaids_prev_all %>% 
   filter(country %in% highest_prev_ous | 
-         country %in% highest_inc_ous) %>%
+           country %in% highest_inc_ous) %>%
   pivot_wider(names_from = indicator,
               names_glue ="{indicator}_{.value}",
               values_from = c(estimate, lower_bound, upper_bound)) %>%
   clean_names() %>%
   mutate(
     across(starts_with(c("adult_hiv_prevalence_percent_", 
-                       "incidence_per_1000_")), 
+                         "incidence_per_1000_")), 
            ~as.numeric(.)), 
     ou_order_val_prev = case_when(year == max(year) ~ 
-                               adult_hiv_prevalence_percent_estimate),
+                                    adult_hiv_prevalence_percent_estimate),
     ou_order_val_inc = case_when(year == max(year) ~ 
-                                    adult_hiv_prevalence_percent_estimate))
+                                   adult_hiv_prevalence_percent_estimate))
 
 unaids_prev_wide %>%
   ggplot(aes(x = year)) +
@@ -451,10 +450,10 @@ unaids_prev_wide %>%
                   ymin = adult_hiv_prevalence_percent_upper_bound), 
               fill = denim_light, alpha = 1) +
   geom_line(aes(y = adult_hiv_prevalence_percent_estimate), 
-              color = denim, 
+            color = denim, 
             size = 1) +
   geom_area(aes(y = adult_hiv_prevalence_percent_lower_bound),
-              alpha = 0.1, 
+            alpha = 0.1, 
             fill = denim_light) +
   geom_vline(xintercept = 2003, 
              colour= denim, 
