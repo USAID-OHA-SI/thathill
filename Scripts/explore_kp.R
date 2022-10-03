@@ -59,7 +59,14 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
     mutate(population = "MSM") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-          OU %in% complete_totals$area)
+          OU %in% complete_totals$area) %>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
+  
   
   long_by_ou_pwid <- pivot_longer(
     as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
