@@ -400,7 +400,70 @@ ou_table_2020_cov <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
   group_by(area) %>%
   summarize(n_kps = sum(n_estimates))
 
+# KP figures ----------------------------------------------------------------
 
+# population size estimate
+sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                             indicator = "Population Size Estimate")
+sparse_df_pse %>% 
+  missing_data_heatmap(., 
+                       "How Many Poulation Size Estimates Exist From PEPFAR supported OUs
+ with available KP data in the previous 5 years?")
+
+si_save(glue("thathill/Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.svg"),
+        height = 9, width = 16)
+
+# HIV prevalence
+sparse_df_hivprev <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                                 indicator = "HIV prevalence")
+
+sparse_df_hivprev %>% 
+  missing_data_heatmap(., 
+                       "How Many HIV Prevalence Estimates Exist From PEPFAR supported OUs
+with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_HIV prevalence_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# Antiretroviral therapy coverage
+sparse_df_artcov <- populate_sparse_df_PLHIV(df = kp_tidier, 
+                                             indicator = "Antiretroviral therapy coverage")
+sparse_df_artcov %>% 
+  missing_data_heatmap(., 
+                       "How Many Antiretroviral therapy coverage Estimates Exist 
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_ARTcoverage_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# coverage of HIV prevention programs
+sparse_df_hivcov <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
+                                                    indicator = "Coverage of HIV prevention programmes")
+
+sparse_df_hivcov %>% 
+  missing_data_heatmap(., 
+                       "How Many Estimates Exist for Coverage of HIV prevention programmes
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_HIVprogcoverage_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# HIV testing and status awareness
+
+sparse_df_1st90 <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
+                                                   indicator = "HIV testing and status awareness")
+sparse_df_1st90 %>% 
+  missing_data_heatmap(., 
+                       "How Many HIV testing and status awareness Estimates Exist 
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_1st90_{Sys.Date()}.png"),
+        height = 10, width = 10)
+  
 # What if we look at prevention in the UNAIDS data? ----------------------------
 unaids_prev <- read_sheet("1yrgS_ZbA3Q8diICkQnl9CdF-77hF8PKuQ9KGP7r6vGg")
 
@@ -512,68 +575,3 @@ si_save("thathill/Graphics/prevention_hivincper1000.svg")
 # kps?
 # heatmap of kp data by ous and year
 
-# draft figures ----------------------------------------------------------------
-
-
-# population size estimate
-sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
-                                             indicator = "Population Size Estimate")
-sparse_df_pse %>% 
-  missing_data_heatmap(., 
-                       "How Many Poulation Size Estimates Exist From PEPFAR supported OUs
- with available KP data in the previous 5 years?")
-
-si_save(glue("thathill/Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.svg"),
-        height = 9, width = 16)
-
-# HIV prevalence
-sparse_df_hivprev <- populate_sparse_df_notPLHIV(df = kp_tidier, 
-                                                 indicator = "HIV prevalence")
-
-sparse_df_hivprev %>% 
-  missing_data_heatmap(., 
-                       "How Many HIV Prevalence Estimates Exist From PEPFAR supported OUs
-with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_HIV prevalence_{Sys.Date()}.png"),
-        height = 10, width = 10)
-
-# Antiretroviral therapy coverage
-sparse_df_artcov <- populate_sparse_df_PLHIV(df = kp_tidier, 
-                                             indicator = "Antiretroviral therapy coverage")
-sparse_df_artcov %>% 
-  missing_data_heatmap(., 
-                       "How Many Antiretroviral therapy coverage Estimates Exist 
-From PEPFAR supported OUs with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_ARTcoverage_{Sys.Date()}.png"),
-        height = 10, width = 10)
-
-# coverage of HIV prevention programs
-sparse_df_hivcov <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
-                                                    indicator = "Coverage of HIV prevention programmes")
-
-sparse_df_hivcov %>% 
-  missing_data_heatmap(., 
-                       "How Many Estimates Exist for Coverage of HIV prevention programmes
-From PEPFAR supported OUs with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_HIVprogcoverage_{Sys.Date()}.png"),
-        height = 10, width = 10)
-
-# HIV testing and status awareness
-
-sparse_df_1st90 <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
-                                                   indicator = "HIV testing and status awareness")
-sparse_df_1st90 %>% 
-  missing_data_heatmap(., 
-                       "How Many HIV testing and status awareness Estimates Exist 
-From PEPFAR supported OUs with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_1st90_{Sys.Date()}.png"),
-        height = 10, width = 10)
-  
