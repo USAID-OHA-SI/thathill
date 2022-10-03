@@ -361,14 +361,14 @@ populate_sparse_df_PLHIV <- function(df, indicator){
 
 missing_data_heatmap <- function(df, title){
   
-  df %>%
+  sparse_df_pse %>%
     group_by(OU, population) %>%
-    mutate(sum = sum(n_ests)) %>%
-    ggplot(aes(time_period, fct_reorder(OU, sum))) +
-    geom_tile(aes(fill = n_ests), color = "white", alpha = .4, 
+    mutate(sum = sum(has_est)) %>%
+    ggplot(aes(fct_reorder(population, sum, .desc = TRUE), 
+               fct_reorder(OU, sum))) +
+    geom_tile(aes(fill = has_est), color = usaid_lightgrey, alpha = .4, 
               show.legend = FALSE) + 
-    facet_grid(~fct_reorder(population, sum, .desc = TRUE)) +
-    scale_x_discrete(position = "top") +
+    scale_fill_gradient(position = "top") +
     viridis::scale_fill_viridis(option = "D") +
     theme(legend.position = "none") +
     labs(x = NULL, y = NULL, fill = NULL,
@@ -440,6 +440,10 @@ kp_tidier <- kp_data %>%
 
 write_sheet(kp_tidier, "1Jxj2PlJKSr_LrU2uNs-DBtl-6hwmzaha6Gg6wDQuAxw", 
             "kp_tidier")
+
+# population size estimate
+sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                             indicator = "Population Size Estimate")
 
 # EDA --------------------------------------------------------------------------
 
