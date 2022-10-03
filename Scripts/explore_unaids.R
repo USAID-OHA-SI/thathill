@@ -11,6 +11,7 @@
 # Libraries
 library(glamr)
 library(glitr)
+library(gophr)
 library(tidyverse)
 library(tidymodels)
 library(tidytext)
@@ -112,7 +113,7 @@ casc_clust_error <- casc_clust %>%
 
 # clustering ===================================================================
 
-# k-means
+# k-means ----------------------------------------------------------------------
 mod_clust <- kmeans(casc_clust_error %>%
                       select(-country), centers = 5)
 summary(mod_clust)
@@ -142,7 +143,7 @@ augment(mod_clust, casc_clust_error) %>%
        caption = glue::glue("Source: UNAIDS 2022 | {ref_id}")) +
   guides(color = guide_legend(nrow = 2, byrow = TRUE))
 
-# PCA
+# PCA --------------------------------------------------------------------------
 
 # looking at the errors only suggests that there are 3 PCs:
 # PC1: countries which have met all cascade goals
