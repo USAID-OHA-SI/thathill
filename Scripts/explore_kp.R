@@ -35,7 +35,7 @@ options(scipen = 999)
 # inputs and outputs -----------------------------------------------------------
 
 outputs <- list(
-kp_findings = "lastmile/Scripts/global_story/outputs/kp_findings.csv")
+kp_findings = "Scripts/global_story/outputs/kp_findings.csv")
 ymax = "2021"
 goal = 95
 
@@ -444,6 +444,9 @@ write_sheet(kp_tidier, "1Jxj2PlJKSr_LrU2uNs-DBtl-6hwmzaha6Gg6wDQuAxw",
 # population size estimate
 sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
                                              indicator = "Population Size Estimate")
+
+write_sheet(sparse_df_pse, "1A1chBFf700j00IZI4rO8ckV_Bo8Tn9JsmNUjeD_CFas", 
+            "sparse_df_pse")
 
 # EDA --------------------------------------------------------------------------
 
