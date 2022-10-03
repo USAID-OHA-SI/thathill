@@ -4,7 +4,7 @@
 # REF ID:   d1836592
 # LICENSE:  MIT
 # DATE CREATED: 2022-07-21
-# DATE UPDATED: 2022-09-07
+# DATE UPDATED: 2022-10-03
 
 # dependencies -----------------------------------------------------------------
 
@@ -35,7 +35,7 @@ options(scipen = 999)
 # inputs and outputs -----------------------------------------------------------
 
 outputs <- list(
-kp_findings = "lastmile/Scripts/global_story/outputs/kp_findings.csv")
+kp_findings = "Scripts/global_story/outputs/kp_findings.csv")
 ymax = "2021"
 goal = 95
 
@@ -51,6 +51,7 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
 
   complete_totals_tab <- tabyl(complete_totals, 
                                time_period, area, population)
+  
   long_by_ou_msm <- pivot_longer(
     as.data.frame(complete_totals_tab[["men who have sex with men"]]), 
     !time_period,
@@ -59,8 +60,14 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
     mutate(population = "MSM") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-          OU %in% complete_totals$area)
-  
+          OU %in% complete_totals$area) %>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
+
   long_by_ou_pwid <- pivot_longer(
     as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
     !time_period,
@@ -69,7 +76,13 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
     mutate(population = "PWID") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_prisoners <- pivot_longer(
     as.data.frame(complete_totals_tab[["prisoners"]]), 
@@ -79,7 +92,13 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
     mutate(population = "Prisoners") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_sw <- pivot_longer(
     as.data.frame(complete_totals_tab[["sex workers"]]), 
@@ -89,7 +108,13 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
     mutate(population = "SW") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_tp <- pivot_longer(
     as.data.frame(complete_totals_tab[["transgender people"]]), 
@@ -99,29 +124,31 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
     mutate(population = "TP") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   full_sparse_df <- long_by_ou_msm %>%
     full_join(., long_by_ou_pwid, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_prisoners, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_sw, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_tp, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests"))
+                     "has_est")) %>%
 
   return(full_sparse_df)
 }
@@ -146,7 +173,13 @@ populate_sparse_df_notPLHIV_pnr <- function(df, indicator){
     mutate(population = "MSM") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_pwid <- pivot_longer(
     as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
@@ -156,7 +189,13 @@ populate_sparse_df_notPLHIV_pnr <- function(df, indicator){
     mutate(population = "PWID") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_sw <- pivot_longer(
     as.data.frame(complete_totals_tab[["sex workers"]]), 
@@ -166,7 +205,13 @@ populate_sparse_df_notPLHIV_pnr <- function(df, indicator){
     mutate(population = "SW") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_tp <- pivot_longer(
     as.data.frame(complete_totals_tab[["transgender people"]]), 
@@ -176,24 +221,27 @@ populate_sparse_df_notPLHIV_pnr <- function(df, indicator){
     mutate(population = "TP") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   full_sparse_df <- long_by_ou_msm %>%
     full_join(., long_by_ou_pwid, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_sw, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_tp, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests"))
+                     "has_est")) %>%
   
   return(full_sparse_df)
 }
@@ -218,7 +266,13 @@ populate_sparse_df_PLHIV <- function(df, indicator){
     mutate(population = "MSM") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_pwid <- pivot_longer(
     as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
@@ -228,7 +282,13 @@ populate_sparse_df_PLHIV <- function(df, indicator){
     mutate(population = "PWID") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_prisoners <- pivot_longer(
     as.data.frame(complete_totals_tab[["prisoners living with HIV"]]), 
@@ -238,7 +298,13 @@ populate_sparse_df_PLHIV <- function(df, indicator){
     mutate(population = "Prisoners") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_sw <- pivot_longer(
     as.data.frame(complete_totals_tab[["sex workers"]]), 
@@ -248,7 +314,13 @@ populate_sparse_df_PLHIV <- function(df, indicator){
     mutate(population = "SW") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   long_by_ou_tp <- pivot_longer(
     as.data.frame(complete_totals_tab[["transgender people"]]), 
@@ -258,51 +330,54 @@ populate_sparse_df_PLHIV <- function(df, indicator){
     mutate(population = "TP") %>%
     filter(time_period %in% c("2016", "2017", "2018", 
                               "2019", "2020"),
-           OU %in% complete_totals$area)
+           OU %in% complete_totals$area)%>%
+    group_by(OU, population) %>%
+    summarize(n_ests = sum(n_ests)) %>%
+    # does the OU have at least 1 estimate in the previous 5 years?
+    mutate(has_est = as.numeric(
+      if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
+    select(OU, population, has_est)
   
   full_sparse_df <- long_by_ou_msm %>%
     full_join(., long_by_ou_pwid, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_prisoners, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_sw, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_tp, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests"))
+                     "has_est")) %>%
   
   return(full_sparse_df)
 }
 
 missing_data_heatmap <- function(df, title){
   
-  df %>%
+  sparse_df_pse %>%
     group_by(OU, population) %>%
-    mutate(sum = sum(n_ests)) %>%
-    ggplot(aes(time_period, fct_reorder(OU, sum))) +
-    geom_tile(aes(fill = n_ests), color = "white", alpha = .4, 
+    mutate(sum = sum(has_est)) %>%
+    ggplot(aes(fct_reorder(population, sum, .desc = TRUE), 
+               fct_reorder(OU, sum))) +
+    geom_tile(aes(fill = has_est), color = usaid_lightgrey, alpha = .4, 
               show.legend = FALSE) + 
-    facet_grid(~fct_reorder(population, sum, .desc = TRUE)) +
-    scale_x_discrete(position = "top") +
+    scale_fill_gradient(position = "top") +
     viridis::scale_fill_viridis(option = "D") +
     theme(legend.position = "none") +
     labs(x = NULL, y = NULL, fill = NULL,
          color = NULL,
          fill = NULL,
          title = title %>% toupper,
-         caption = glue("J. Hoehner, Office of HIV/AIDS | UNAIDS KP Atlas Database 2021 | {ref_id} "),
-         subtitle = "A yellow box indicates an available estimate while a purple box indicates no estimate is available") +
+         caption = glue("J. Hoehner, SI Analytics | UNAIDS KP Atlas Database 2021 | {ref_id} "),
+         subtitle = glue("A yellow box indicates an available estimate from the previous 5 years 
+         (2016 - 2020) while a purple box indicates no estimate is available for the previous 5 years")) +
     si_style_nolines() +
     theme(panel.spacing = unit(.4, "picas"),
           strip.placement = "outside",
@@ -366,6 +441,13 @@ kp_tidier <- kp_data %>%
 write_sheet(kp_tidier, "1Jxj2PlJKSr_LrU2uNs-DBtl-6hwmzaha6Gg6wDQuAxw", 
             "kp_tidier")
 
+# population size estimate
+sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                             indicator = "Population Size Estimate")
+
+write_sheet(sparse_df_pse, "1A1chBFf700j00IZI4rO8ckV_Bo8Tn9JsmNUjeD_CFas", 
+            "sparse_df_pse")
+
 # EDA --------------------------------------------------------------------------
 
 # of the population size ests and perecent coverage indicators, 
@@ -388,7 +470,6 @@ ou_table_2020_pse <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
   group_by(area) %>%
   summarize(n_kps = sum(n_estimates))
 
-
 # which OUS have complete coverage data for all KPs in 2020?
 complete_totals_2020_cov <- complete_totals_2020 %>%
   filter(time_period == "2020",
@@ -400,7 +481,67 @@ ou_table_2020_cov <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
   group_by(area) %>%
   summarize(n_kps = sum(n_estimates))
 
+# KP figures ----------------------------------------------------------------
 
+sparse_df_pse %>% 
+  missing_data_heatmap(., 
+                       "How Many Poulation Size Estimates Exist From PEPFAR supported OUs
+ with available KP data in the previous 5 years?")
+
+si_save(glue("Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.svg"),
+        height = 9, width = 16)
+
+# HIV prevalence
+sparse_df_hivprev <- populate_sparse_df_notPLHIV(df = kp_tidier, 
+                                                 indicator = "HIV prevalence")
+
+sparse_df_hivprev %>% 
+  missing_data_heatmap(., 
+                       "How Many HIV Prevalence Estimates Exist From PEPFAR supported OUs
+with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_HIV prevalence_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# Antiretroviral therapy coverage
+sparse_df_artcov <- populate_sparse_df_PLHIV(df = kp_tidier, 
+                                             indicator = "Antiretroviral therapy coverage")
+sparse_df_artcov %>% 
+  missing_data_heatmap(., 
+                       "How Many Antiretroviral therapy coverage Estimates Exist 
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_ARTcoverage_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# coverage of HIV prevention programs
+sparse_df_hivcov <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
+                                                    indicator = "Coverage of HIV prevention programmes")
+
+sparse_df_hivcov %>% 
+  missing_data_heatmap(., 
+                       "How Many Estimates Exist for Coverage of HIV prevention programmes
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_HIVprogcoverage_{Sys.Date()}.png"),
+        height = 10, width = 10)
+
+# HIV testing and status awareness
+
+sparse_df_1st90 <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
+                                                   indicator = "HIV testing and status awareness")
+sparse_df_1st90 %>% 
+  missing_data_heatmap(., 
+                       "How Many HIV testing and status awareness Estimates Exist 
+From PEPFAR supported OUs with available KP data in the previous 5 years?")
+
+#export
+si_save(glue("Images/KPAtlasfindings_1st90_{Sys.Date()}.png"),
+        height = 10, width = 10)
+  
 # What if we look at prevention in the UNAIDS data? ----------------------------
 unaids_prev <- read_sheet("1yrgS_ZbA3Q8diICkQnl9CdF-77hF8PKuQ9KGP7r6vGg")
 
@@ -414,9 +555,9 @@ unaids_prev_all <- unaids_prev %>%
 # How has prevalence changed over time in OUs with highest prev? 
 
 highest_prev_p_ous <- c("Botswana","Lesotho",
-                      "Namibia","South Africa", 
-                      "Zimbabwe","Eswatini","Zambia", 
-                      "Nigeria", "Ethiopia") 
+                        "Namibia","South Africa", 
+                        "Zimbabwe","Eswatini","Zambia", 
+                        "Nigeria", "Ethiopia") 
 
 highest_inc_ous <- c("Botswana","Lesotho",
                      "Namibia","South Africa", 
@@ -428,22 +569,21 @@ highest_inc_ous <- unaids_prev_all %>%
          indicator == "Incidence Per 1000") %>%
   arrange(desc(estimate))
 
-
 unaids_prev_wide <- unaids_prev_all %>% 
   filter(country %in% highest_prev_ous | 
-         country %in% highest_inc_ous) %>%
+           country %in% highest_inc_ous) %>%
   pivot_wider(names_from = indicator,
               names_glue ="{indicator}_{.value}",
               values_from = c(estimate, lower_bound, upper_bound)) %>%
   clean_names() %>%
   mutate(
     across(starts_with(c("adult_hiv_prevalence_percent_", 
-                       "incidence_per_1000_")), 
+                         "incidence_per_1000_")), 
            ~as.numeric(.)), 
     ou_order_val_prev = case_when(year == max(year) ~ 
-                               adult_hiv_prevalence_percent_estimate),
+                                    adult_hiv_prevalence_percent_estimate),
     ou_order_val_inc = case_when(year == max(year) ~ 
-                                    adult_hiv_prevalence_percent_estimate))
+                                   adult_hiv_prevalence_percent_estimate))
 
 unaids_prev_wide %>%
   ggplot(aes(x = year)) +
@@ -451,10 +591,10 @@ unaids_prev_wide %>%
                   ymin = adult_hiv_prevalence_percent_upper_bound), 
               fill = denim_light, alpha = 1) +
   geom_line(aes(y = adult_hiv_prevalence_percent_estimate), 
-              color = denim, 
+            color = denim, 
             size = 1) +
   geom_area(aes(y = adult_hiv_prevalence_percent_lower_bound),
-              alpha = 0.1, 
+            alpha = 0.1, 
             fill = denim_light) +
   geom_vline(xintercept = 2003, 
              colour= denim, 
@@ -513,68 +653,3 @@ si_save("thathill/Graphics/prevention_hivincper1000.svg")
 # kps?
 # heatmap of kp data by ous and year
 
-# draft figures ----------------------------------------------------------------
-
-
-# population size estimate
-sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
-                                             indicator = "Population Size Estimate")
-sparse_df_pse %>% 
-  missing_data_heatmap(., 
-                       "How Many Poulation Size Estimates Exist From PEPFAR supported OUs
- with available KP data in the previous 5 years?")
-
-si_save(glue("thathill/Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.svg"),
-        height = 9, width = 16)
-
-# HIV prevalence
-sparse_df_hivprev <- populate_sparse_df_notPLHIV(df = kp_tidier, 
-                                                 indicator = "HIV prevalence")
-
-sparse_df_hivprev %>% 
-  missing_data_heatmap(., 
-                       "How Many HIV Prevalence Estimates Exist From PEPFAR supported OUs
-with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_HIV prevalence_{Sys.Date()}.png"),
-        height = 10, width = 10)
-
-# Antiretroviral therapy coverage
-sparse_df_artcov <- populate_sparse_df_PLHIV(df = kp_tidier, 
-                                             indicator = "Antiretroviral therapy coverage")
-sparse_df_artcov %>% 
-  missing_data_heatmap(., 
-                       "How Many Antiretroviral therapy coverage Estimates Exist 
-From PEPFAR supported OUs with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_ARTcoverage_{Sys.Date()}.png"),
-        height = 10, width = 10)
-
-# coverage of HIV prevention programs
-sparse_df_hivcov <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
-                                                    indicator = "Coverage of HIV prevention programmes")
-
-sparse_df_hivcov %>% 
-  missing_data_heatmap(., 
-                       "How Many Estimates Exist for Coverage of HIV prevention programmes
-From PEPFAR supported OUs with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_HIVprogcoverage_{Sys.Date()}.png"),
-        height = 10, width = 10)
-
-# HIV testing and status awareness
-
-sparse_df_1st90 <- populate_sparse_df_notPLHIV_pnr(df = kp_tidier, 
-                                                   indicator = "HIV testing and status awareness")
-sparse_df_1st90 %>% 
-  missing_data_heatmap(., 
-                       "How Many HIV testing and status awareness Estimates Exist 
-From PEPFAR supported OUs with available KP data in the previous 5 years?")
-
-#export
-si_save(glue("Images/KPAtlasfindings_1st90_{Sys.Date()}.png"),
-        height = 10, width = 10)
-  
