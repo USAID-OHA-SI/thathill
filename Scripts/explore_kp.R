@@ -376,8 +376,8 @@ missing_data_heatmap <- function(df, title){
          fill = NULL,
          title = title %>% toupper,
          caption = glue("J. Hoehner, SI Analytics | UNAIDS KP Atlas Database 2021 | {ref_id} "),
-         subtitle = "A yellow box indicates an available estimate from the previous 5 years 
-         (2016 - 2020) while a purple box indicates no estimate is available for the previous 5 years") +
+         subtitle = glue("A yellow box indicates an available estimate from the previous 5 years 
+         (2016 - 2020) while a purple box indicates no estimate is available for the previous 5 years")) +
     si_style_nolines() +
     theme(panel.spacing = unit(.4, "picas"),
           strip.placement = "outside",
@@ -480,15 +480,12 @@ ou_table_2020_cov <- as.data.frame(tabyl(complete_totals_2020_pse, area, populat
 
 # KP figures ----------------------------------------------------------------
 
-# population size estimate
-sparse_df_pse <- populate_sparse_df_notPLHIV(df = kp_tidier, 
-                                             indicator = "Population Size Estimate")
 sparse_df_pse %>% 
   missing_data_heatmap(., 
                        "How Many Poulation Size Estimates Exist From PEPFAR supported OUs
  with available KP data in the previous 5 years?")
 
-si_save(glue("thathill/Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.svg"),
+si_save(glue("Images/KPAtlasfindings_PopulationSizeEst_{Sys.Date()}.svg"),
         height = 9, width = 16)
 
 # HIV prevalence
