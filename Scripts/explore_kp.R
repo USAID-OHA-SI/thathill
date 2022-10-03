@@ -68,7 +68,6 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
       if_else(as.numeric(n_ests) > 0, TRUE,FALSE))) %>%
     select(OU, population, has_est)
 
-  
   long_by_ou_pwid <- pivot_longer(
     as.data.frame(complete_totals_tab[["people who inject drugs"]]), 
     !time_period,
@@ -135,25 +134,21 @@ populate_sparse_df_notPLHIV <- function(df, indicator){
   
   full_sparse_df <- long_by_ou_msm %>%
     full_join(., long_by_ou_pwid, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_prisoners, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_sw, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests")) %>%
+                     "has_est")) %>%
     full_join(., long_by_ou_tp, 
-              by = c("time_period", 
-                     "OU",
+              by = c("OU",
                      "population", 
-                     "n_ests"))
+                     "has_est")) %>%
 
   return(full_sparse_df)
 }
