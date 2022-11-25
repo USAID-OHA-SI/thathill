@@ -84,11 +84,6 @@
 # Small multiples 
   
   # comparing Q3 and Q4 
-  ggplot(data = df_all) +
-    geom_point(mapping = aes(x = period, y = VLS)) +
-    facet_grid(~snu1)
-  
-
 
   
    # Creates  Small multiples by SNU
@@ -102,5 +97,30 @@
          caption = " TX_ PVLS Trends
            Source: MSD FY22Q4, 23 Nov 2022")
 
+  ggplot(data = df_all) +
+    geom_point(mapping = aes(x = period, y = VLS ,col= age_2019)) +
+    facet_wrap(~snu1) +
+    si_style_xgrid() +
+    labs(y = NULL,
+         title = "USAID Uganda TX_ PVLS Trends in FY22",
+         subtitle = "TX_PVLS declined <1 - 19 age bands",
+         caption = " TX_ PVLS Trends
+           Source: MSD FY22Q4, 23 Nov 2022")
 
+    
+  ggplot(data = df_all,
+    mapping = aes(x = period, y = VLS, col = age_2019)) +
+    geom_line(mapping = aes(group = age_2019),
+              alpha =.9)+
+    #geom_point(alpha = .9) 
+    facet_wrap(~snu1) +
+    #si_style_xgrid() +
+    labs(y = NULL,
+         title = "USAID Uganda TX_ PVLS Trends in FY22",
+         subtitle = "TX_PVLS declined <1 - 19 age bands",
+         caption = " TX_ PVLS Trends
+           Source: MSD FY22Q4, 23 Nov 2022")
+  
+  
+  
   
