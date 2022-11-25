@@ -76,12 +76,9 @@
     summarise(across(starts_with("TX"), sum, na.rm = T), .groups = "drop") %>% 
     mutate(VLC = TX_PVLS_D / TX_CURR_LAG2,
            VLS = TX_PVLS/TX_PVLS_D) %>% 
-    filter(period %in% c("FY22Q3","FY22Q4",
-                         age_2019 %in% c("<1", "01-04", "05-09", "10-14", "15-19")))
+    filter(period %in% c("FY22Q3","FY22Q4","FY22Q1","FY22Q2"),
+                         age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19"))
           
-  
-  df_all <-df_all %>% 
-    filter(age_2019 %in% c("<1", "01-04", "05-09", "10-14", "15-19"))
   
   
 # Small multiples 
@@ -92,45 +89,18 @@
     facet_grid(~snu1)
   
 
-  
-  # maps data  for Q3 and Q4 
-  ggplot(data = df_all) +
-    geom_point(mapping = aes(x = age_2019, y = VLS )) +
-    facet_wrap(~snu1) 
 
-    ## adding color
   
-  ggplot(data = df_all) +
-    geom_point(mapping = aes(x = age_2019, y = VLS ,col= period)) +
-    facet_wrap(~snu1)
-  
+   # Creates  Small multiples by SNU
   ggplot(data = df_all) +
     geom_point(mapping = aes(x = age_2019, y = VLS ,col= period)) +
     facet_wrap(~snu1) +
     si_style_xgrid() +
     labs(y = NULL,
-         title = "USAID Uganda TX_ PVLS Trends",
+         title = "USAID Uganda TX_ PVLS Trends in FY22",
          subtitle = "TX_PVLS declined <1 - 19 age bands",
          caption = " TX_ PVLS Trends
            Source: MSD FY22Q4, 23 Nov 2022")
 
 
-  ggplot(data=df_all, aes(x=age_2019, y=VLS, col= period)) +
-    geom_bar(position="identity", stat ="dodge")
-  
-  
-  ggplot(df_all, aes(fill=condition, y=VLS, x=age_2019)) + 
-    geom_bar(position="dodge", stat="identity")
-  
-  
-  librar
-  
-  
-  ggplot(data=df_all, aes(x=age_2019, y=VLS, col=period)) +
-    geom_bar(stat="identity", position=position_dodge())+
-    geom_text(aes(label=len), vjust=1.6, color="white",
-              position = position_dodge(0.9), size=3.5)+
-    scale_fill_brewer(palette="Paired")+
-    theme_minimal()
-  
   
