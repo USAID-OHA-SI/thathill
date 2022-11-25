@@ -19,7 +19,11 @@
   library(glue)
   library(readxl)
   library(googlesheets4)
-  
+  library(lattice)
+
+ 
+   #aletered
+  library(ggplot2)
 
 # GLOBAL VARIABLES --------------------------------------------------------
   
@@ -38,7 +42,7 @@
   get_metadata(msd_path)
   
 
-  ref_id <- "e410ba62"
+  ohgref_id <- "e410ba62"
 
 # IMPORT ------------------------------------------------------------------
   
@@ -50,31 +54,83 @@
 # MUNGE -------------------------------------------------------------------
   
   
-  df_msd %>% 
+ df_all <-df_msd %>% 
     clean_indicator() %>% 
     clean_agency() %>% 
     filter(
-      fiscal_year != metadata$curr_fy + 1,
+      fiscal_year != 2023,
       funding_agency == "USAID",
       indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
       standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
     ) %>% 
-    group_by(fiscal_year, funding_agency, snu1, indicator, trendscoarse) %>% 
+    group_by(fiscal_year, funding_agency, snu1, indicator, age_2019) %>% 
     summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
     reshape_msd() %>% 
     select(-period_type) %>% 
     pivot_wider(names_from = indicator, values_from = value) %>% 
-    group_by(funding_agency, snu1, trendscoarse) %>% 
+    group_by(funding_agency, snu1, age_2019) %>% 
     mutate(TX_CURR_LAG2 = lag(TX_CURR, 2, order_by = period)) %>% 
     relocate(TX_CURR_LAG2, .before = TX_CURR) %>% 
     filter(!is.na(TX_PVLS_D), TX_PVLS_D > 0) %>% 
-    group_by(period, funding_agency, snu1, trendscoarse) %>% 
+    group_by(period, funding_agency, snu1, age_2019) %>% 
     summarise(across(starts_with("TX"), sum, na.rm = T), .groups = "drop") %>% 
     mutate(VLC = TX_PVLS_D / TX_CURR_LAG2,
            VLS = TX_PVLS/TX_PVLS_D) %>% 
-    filter(period == metadata$curr_pd,
-           trendscoarse == "<15")
+    filter(period %in% c("FY22Q3","FY22Q4",
+                         age_2019 %in% c("<1", "01-04", "05-09", "10-14", "15-19")))
+          
+  
+  df_all <-df_all %>% 
+    filter(age_2019 %in% c("<1", "01-04", "05-09", "10-14", "15-19"))
   
   
+# Small multiples 
+  
+  # comparing Q3 and Q4 
+  ggplot(data = df_all) +
+    geom_point(mapping = aes(x = period, y = VLS)) +
+    facet_grid(~snu1)
+  
+
+  
+  # maps data  for Q3 and Q4 
+  ggplot(data = df_all) +
+    geom_point(mapping = aes(x = age_2019, y = VLS )) +
+    facet_wrap(~snu1) 
+
+    ## adding color
+  
+  ggplot(data = df_all) +
+    geom_point(mapping = aes(x = age_2019, y = VLS ,col= period)) +
+    facet_wrap(~snu1)
+  
+  ggplot(data = df_all) +
+    geom_point(mapping = aes(x = age_2019, y = VLS ,col= period)) +
+    facet_wrap(~snu1) +
+    si_style_xgrid() +
+    labs(y = NULL,
+         title = "USAID Uganda TX_ PVLS Trends",
+         subtitle = "TX_PVLS declined <1 - 19 age bands",
+         caption = " TX_ PVLS Trends
+           Source: MSD FY22Q4, 23 Nov 2022")
+
+
+  ggplot(data=df_all, aes(x=age_2019, y=VLS, col= period)) +
+    geom_bar(position="identity", stat ="dodge")
+  
+  
+  ggplot(df_all, aes(fill=condition, y=VLS, x=age_2019)) + 
+    geom_bar(position="dodge", stat="identity")
+  
+  
+  librar
+  
+  
+  ggplot(data=df_all, aes(x=age_2019, y=VLS, col=period)) +
+    geom_bar(stat="identity", position=position_dodge())+
+    geom_text(aes(label=len), vjust=1.6, color="white",
+              position = position_dodge(0.9), size=3.5)+
+    scale_fill_brewer(palette="Paired")+
+    theme_minimal()
   
   
