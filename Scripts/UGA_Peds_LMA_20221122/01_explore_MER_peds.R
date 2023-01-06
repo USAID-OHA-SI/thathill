@@ -1,8 +1,8 @@
-# AUTHOR:   K. Srikanth | USAID
+# AUTHOR:   K. Srikanth, J. Hoehner | USAID
 # PURPOSE:  explore MER Peds VLS rates
 # REF ID:   e410ba62 
 # LICENSE:  MIT
-# DATE:     2022-11-22
+# DATE:     2023-01-06
 # UPDATED: 
 
 # DEPENDENCIES ------------------------------------------------------------
@@ -20,7 +20,6 @@ library(glue)
 library(readxl)
 library(googlesheets4)
 
-
 # GLOBAL VARIABLES --------------------------------------------------------
 
 # SI specific paths/functions  
@@ -33,16 +32,13 @@ data_folder <- "Data/"
 msd_path <- data_folder %>% 
   return_latest("Genie-SiteByIMs-Uganda-Daily-2022-11-22")
 
-
 #store metadata
 get_metadata(msd_path, caption_note = "Created by: OHA SI Team
              LMA Presentation ATD Meeting 11-28-2022")
 
-
 ref_id <- "e410ba62"
 
 # IMPORT ------------------------------------------------------------------
-
 
 #read MSD
 df_msd <- msd_path %>% 
@@ -54,12 +50,10 @@ df_viz_snu <- df_msd %>%
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-   # fiscal_year == metadata$curr_fy,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
-    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
-  ) %>% 
-  filter(fiscal_year == metadata$curr_fy) %>% 
+    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")) %>% 
+  filter(fiscal_year == 2022) %>% 
   group_by(fiscal_year, funding_agency, snu1, indicator) %>% 
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
   reshape_msd() %>% 
@@ -80,12 +74,15 @@ df_age_viz <- df_msd %>%
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-    #fiscal_year == metadata$curr_fy,
+    #fiscal_year == 2022,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
-    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
-  ) %>% 
+    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus"), 
+    age_2019 != "<01") %>% 
   group_by(fiscal_year, funding_agency, indicator, age_2019) %>% 
+  mutate(age_2019 = if_else(age_2019 %in% c("15-19", "20-24", "25-29", "30-34", 
+                                            "35-39", "40-44", "45-49", "50+"), 
+                            trendscoarse, age_2019)) %>%
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
   reshape_msd() %>% 
   select(-period_type) %>% 
@@ -97,25 +94,24 @@ df_age_viz <- df_msd %>%
   group_by(period, funding_agency, age_2019) %>% 
   summarise(across(starts_with("TX"), sum, na.rm = T), .groups = "drop") %>% 
   mutate(VLC = TX_PVLS_D / TX_CURR_LAG2,
-         VLS = TX_PVLS/TX_PVLS_D) %>% 
-  filter(
-    #period == metadata$curr_pd,
-    age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19"))
-
+         VLS = TX_PVLS/TX_PVLS_D)
 
 df_all <- df_msd %>% 
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-    fiscal_year == metadata$curr_fy,
+    fiscal_year == 2022,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
-    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
-  ) %>% 
+     standardizeddisaggregate %in% c("Age/Sex/HIVStatus", 
+                                     "Age/Sex/Indication/HIVStatus"), 
+  age_2019 != "<01") %>% 
   group_by(fiscal_year, funding_agency, snu1, indicator, age_2019) %>% 
+  mutate(age_2019 = if_else(age_2019 %in% c("15-19", "20-24", "25-29", "30-34", 
+                                            "35-39", "40-44", "45-49", "50+"), 
+                            trendscoarse, age_2019)) %>%
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
-  reshape_msd() %>% 
-  select(-period_type) %>% 
+  reshape_msd(include_type = FALSE) %>% 
   pivot_wider(names_from = indicator, values_from = value) %>% 
   group_by(funding_agency, snu1, age_2019) %>% 
   mutate(TX_CURR_LAG2 = lag(TX_CURR, 2, order_by = period)) %>% 
@@ -124,14 +120,9 @@ df_all <- df_msd %>%
   group_by(period, funding_agency, snu1, age_2019) %>% 
   summarise(across(starts_with("TX"), sum, na.rm = T), .groups = "drop") %>% 
   mutate(VLC = TX_PVLS_D / TX_CURR_LAG2,
-         VLS = TX_PVLS/TX_PVLS_D) %>% 
-  filter(
-    #period == metadata$curr_pd,
-    age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19"))
-
+         VLS = TX_PVLS/TX_PVLS_D)
 
 # VIZ -------------------------------------------------------------
-
 
 # Small multiples 
 
@@ -210,17 +201,14 @@ df_all %>%
   labs(y = NULL,
        title = glue("Across most SNUs and age groups, viral load suppression decreased for CLHIV from FY22Q3 to FY22Q$" %>% toupper()),
        #subtitle = "Uganda COP22 DSD Analysis | USAID",
-       caption = glue("{metadata$caption}")
-  ) +
+       caption = glue("{metadata$caption} | 
+                      Note that children <01 year of age have been omitted due to low TX_CURR")) +
   theme(
     panel.grid.major.y = element_blank(),
     #axis.text.x = element_blank(),
-    plot.title = element_markdown()
-  )
+    plot.title = element_markdown())
 
 si_save("Graphics/03_vls_by_age_snu.svg")  
-  
-
 
 # _--------------------------------------------
 
