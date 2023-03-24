@@ -46,7 +46,7 @@
 # IMPORT ------------------------------------------------------------------
   
 df_tool <- data_folder %>% 
-    return_latest("CALHIV") %>% 
+    return_latest("CALHIV_ Oct data") %>% 
     read_xlsx(sheet = "Merged Clean datasheet") %>% 
     janitor::clean_names()
   
@@ -69,7 +69,7 @@ df_msd <- msd_path %>%
 
 misaligned_facilities <- df_tool %>% 
   left_join(mfl %>% select(`DATIM HF Name`, `DATIM ID`, `DATIM Region`, `DATIM District`, `DATIM Subcounty`),
-            by = c("facility_name" = "DATIM HF Name")) %>% view() 
+            by = c("facility_name" = "DATIM HF Name")) %>% 
   filter(is.na(`DATIM ID`)) %>% 
   distinct(facility_name)
   
@@ -115,23 +115,23 @@ misaligned_facilities <- df_tool %>%
   
 # MSD ----------------------------------------------------------------
   
-  df_msd %>% 
-    clean_indicator() %>% 
-    clean_agency() %>% 
-    filter(
-      # fiscal_year == metadata$curr_fy,
-      funding_agency == "USAID",
-      indicator %in% c("TX_CURR"),
-      standardizeddisaggregate %in% c("Age/Sex/HIVStatus")
-    ) %>% 
-    filter(fiscal_year == metadata$curr_fy) %>% 
-    filter(
-      #period == metadata$curr_pd,
-      age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19")) %>% 
-    group_by(fiscal_year, funding_agency, indicator) %>% 
-    summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
-    reshape_msd() %>% 
-    select(-period_type)
+  # df_msd %>% 
+  #   clean_indicator() %>% 
+  #   clean_agency() %>% 
+  #   filter(
+  #     # fiscal_year == metadata$curr_fy,
+  #     funding_agency == "USAID",
+  #     indicator %in% c("TX_CURR"),
+  #     standardizeddisaggregate %in% c("Age/Sex/HIVStatus")
+  #   ) %>% 
+  #   filter(fiscal_year == metadata$curr_fy) %>% 
+  #   filter(
+  #     #period == metadata$curr_pd,
+  #     age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19")) %>% 
+  #   group_by(fiscal_year, funding_agency, indicator) %>% 
+  #   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
+  #   reshape_msd() %>% 
+  #   select(-period_type)
     
   
   #MSD BY SNU
