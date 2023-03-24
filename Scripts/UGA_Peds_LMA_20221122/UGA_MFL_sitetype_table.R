@@ -1,5 +1,5 @@
 # AUTHOR:   K. Srikanth | USAID
-# PURPOSE:  
+# PURPOSE:  quick site type pull from Uganda MFL for FO request 
 # REF ID:   37dd8f05 
 # LICENSE:  MIT
 # DATE:     2023-03-22
