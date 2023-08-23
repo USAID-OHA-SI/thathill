@@ -44,18 +44,14 @@ df_tt <- pull_unaids(data_type = "HIV Test & Treat", pepfar_only = TRUE)
 # Data for "Subnational Cascades" page comes from UNAIDS EDMS pull
 # "Nat + Subnat Cascade for G^3 dashboard"
 # need ""Percent Known Status of PLHIV", "Percent on ART with Known Status", and "Percent VLS on ART"
-df_cscd_subnat <- read_sheet("1poDM5ZSA2-QBo5oxzzZot532wS4ipbllcPgPBGPXhE4")
+df_cscd_subnat <- read_sheet("1poDM5ZSA2-QBo5oxzzZot532wS4ipbllcPgPBGPXhE4") %>%
+  clean_names()
 
 # Read in Desired Indicators/names/groupings from unaids_indicator_dataset_xwalk ----
 
 un_indic_cw <- read_sheet("1Hd2UQwsxkmnifHmfeO5kGGxHybRUK6HsYp38lXUFH4w", 
                           sheet = "Indicators") %>%
   clean_names()
-
-# Load PEPFAR names so countries can be tagged in full dataset
-pepfar_ous <- glamr::pepfar_country_list %>%
-  dplyr::select(country, iso = country_iso) %>%
-  dplyr::rename(countryname = country)
 
 # munge ------------------------------------------------------------------------
 
@@ -95,56 +91,100 @@ pepfar_ous <- glamr::pepfar_country_list %>%
     # verify that all indicators needed are in the data
     verify(cscd_inds$tidy_name %in% indicator)
   
-  # Data for "Subnational Cascades" page comes from UNAIDS EDMS pull
+  # Data for "Subnational Cascades" page comes from UNAIDS EDMS pull -document this-
   # "Nat + Subnat Cascade for G^3 dashboard"
   # need ""Percent Known Status of PLHIV", "Percent on ART with Known Status", and "Percent VLS on ART"
+  
   df_cscd_subnat_clean <- df_cscd_subnat %>%
     clean_names() %>%
-    # split the e_ind column into "Code" and "Indicator"
-    # code denotes the year, 2023 estimates have a code of "N"
-    separate(e_ind,
-             into = c("code", "indicator"),
-             sep = "- ",
-             extra = "merge",
-             remove = F) %>%
-    # split the indicator column again to create a column for "bound"
-    # to show the upper and lower bounds of each estimate
-    separate(indicator,
-             into = c("indicator", "bound"),
-             sep = "; (?=U|L)|- (?=U|L)") %>%
-    # split the indicator column again to pull out the sex information
-    # UNAIDS provides a "sex" column but we would prefer to format
-    # this column differently
-    separate(indicator,
-             into = c("indicator", "sex_usaid"),
-             sep = "; (?=\\()|(?=Female|Male)| (?=\\(\\d)",
-             extra = "merge") %>%
+    # keep only subnational data from PEPFAR supported countries, 
+    # in previous years we've only seen data from Ethiopia, Kenya, Moldova, and Zimbabwe
+    # using the pepfar_ous list in glamr doesn't catch the iso3 codes in subnational
+    # data so you may want to check manually which countries have submitted
+    # subnational estimates
+    filter(type == "Sub1",
+          !region %in% c("Republic of Moldova", "Moldova")) %>%
+    # select only desired cols to clean
+    select(region, iso2, iso3, e_count, time, 
+           e_ind, sex, age, rounded, other) %>%
     rename(
       country = e_count,
-      geo_level = type,
-      year = time) %>%
+      indicator = e_ind,
+      year = time,
+      bound = other, 
+      estimate = rounded) %>%
+    # splitting the country column to create the admin1 column
+    separate(country,
+      into = c("country", "admin1"), sep = " - ") %>%
+    # split the e_ind column into "Code" and "Indicator"
+    # code denotes the year, 2023 estimates have a code of "N"
+    separate(indicator,
+      into = c("code", "indicator"),
+      sep = "- ",
+      extra = "merge",
+      remove = F) %>%
+    # split indicator again to remove age/sex/bound information
+    # there will be NA ests for indicators which do not have this extra info
+    separate(indicator,
+      into = c("indicator", "extra_bound"),
+      sep = "; (?=U|L)|- (?=U|L)") %>%
+    # split the indicator column again to pull out the age/sex information
+    separate(indicator,
+      into = c("indicator", "extra_age_sex"),
+      sep = "; ",
+      extra = "merge",
+      remove = F) %>%
     mutate(
+      estimate = as.double(estimate),
+      admin1 = str_replace(admin1, " \\s*\\([^\\)]+\\)", "") %>% trimws(),
+      country = str_replace(country, " States", ""),
       bound = case_when(
-        bound == "Lower bound" ~ "lower bound",
-        bound == "Upper bound" ~ "upper bound",
+        bound == "lb" ~ "lower_bound",
+        bound == "ub" ~ "upper_bound",
         is.na(bound) ~ "estimate"),
       indicator = trimws(indicator),
-      sex_usaid = if_else(sex_usaid == "Male+Female", "all",
-                          sex_usaid %>% tolower()),
+      sex = case_when(
+        sex == "M+F"~ "all",
+        sex == "M"~ "male",
+        sex == "F"~ "female"),
       age = case_when(
         str_detect(age, "allAges") ~ "all",
         is.na(age) ~ "all",
         # if the string has 0 length, replace with all
         nchar(age) == 0 ~ "all",
         TRUE ~ age),
-      dataset = if_else(stringr::str_detect(indicator, "Total"), "total_deaths_hiv_pop",
-                        "infections_deaths_averted")) %>%
-    select(region, iso2, iso3, country,
-           geo_level, year, indicator,
-           sex_usaid, age, value, bound, dataset) %>%
+      # this will cause an error if the name of the indicator from EDMS has changed
+      # so the "seperate" functions don't create the column correctly
+      indicator = case_match(indicator,
+          "Among people living with HIV- the percent who know their status" ~ "Percent Known Status of PLHIV",
+          "Among people who know their HIV status- the percent on ART" ~ "Percent on ART with Known Status",
+          "Among people on ART- the percent with suppressed viral load" ~ "Percent VLS on ART"),
+      dataset = "cascade") %>%
+    # this will cause an error if the name of the indicator from EDMS has changed
+    # so the "seperate" functions don't create the column correctly
+    case_match(indicator,
+      "Among people living with HIV- the percent who know their status" ~ "Percent Known Status of PLHIV",
+      "Among people who know their HIV status- the percent on ART" ~ "Percent on ART with Known Status",
+      "Among people on ART- the percent with suppressed viral load" ~ "Percent VLS on ART") %>%
     pivot_wider(names_from = "bound",
-                values_from = "value") %>%
-    rename(sex = sex_usaid)
+                values_from = "estimate") %>%
+    # fill in estimates where missing after pivot, this makes sure we 
+    # can use arrange to correctly line up the data for filling the 
+    # lower and upper bound values which are also missing after the pivot
+    fill(estimate, .direction = "down") %>%
+    arrange(year, region, country, admin1, age, sex, indicator, estimate) %>%
+    # fill in the estimates for the bounds and keep only the rows where the 
+    # estimates (not the bounds) were originally since these were filled 
+    # correctly
+    # Note that "updown" fills in incorrect estimates for the rows where the "upper bounds"
+    # were originally and the filter step keeps only the correct estimates matched 
+    # with their correct bounds 
+    fill(lower_bound, .direction = "updown") %>%
+    fill(upper_bound, .direction = "updown") %>%
+    filter(is.na(extra_bound)) %>%
+    # select only columns needed for the dashboard
+    select(region, iso2, iso3, country, admin1, year, indicator, sex, age, 
+           estimate, lower_bound, upper_bound)
   
   # EPI DATA -------
   
@@ -198,19 +238,19 @@ pepfar_ous <- glamr::pepfar_country_list %>%
 
 # Cascade data
   
+  # National
+  
 df_cscd %>%
   write_sheet(., ss = "1SqFLAzKXrvdDAARErBRx76DZPL0jg0-VC7aRk4xxRPs",
               sheet = "unaids_cascade")
 
-# df_cscd_subnat %>%
-#   write_sheet(., ss = "",
-#               sheet = "unaids_cascade_subnat")
+  # Subnational
+  
+df_cscd_subnat_clean %>%
+   write_sheet(., ss = "1Zb8NHwTF7uDNr5wPCmTTUczPGVtgtHG_Yq25nhxHSmY",
+               sheet = "unaids_cascade_subnat")
 
 # Epi control data
-# 
-# df_epi %>%
-#   write_sheet(., ss = "1uj3Fr8Z8vgnFW98QBO6xZdp05-pqzrHiV_4bnA-KBck",
-#               sheet = "unaids_epi")
 
 df_epi_control %>%
   write_sheet(., ss = "19gLMfHliFQgHzsCXIFEFEiXZD6P9iUS-CfbEckveUX4",
