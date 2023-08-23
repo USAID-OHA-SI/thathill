@@ -160,12 +160,6 @@ un_indic_cw <- read_sheet("1Hd2UQwsxkmnifHmfeO5kGGxHybRUK6HsYp38lXUFH4w",
           "Among people who know their HIV status- the percent on ART" ~ "Percent on ART with Known Status",
           "Among people on ART- the percent with suppressed viral load" ~ "Percent VLS on ART"),
       dataset = "cascade") %>%
-    # this will cause an error if the name of the indicator from EDMS has changed
-    # so the "seperate" functions don't create the column correctly
-    case_match(indicator,
-      "Among people living with HIV- the percent who know their status" ~ "Percent Known Status of PLHIV",
-      "Among people who know their HIV status- the percent on ART" ~ "Percent on ART with Known Status",
-      "Among people on ART- the percent with suppressed viral load" ~ "Percent VLS on ART") %>%
     pivot_wider(names_from = "bound",
                 values_from = "estimate") %>%
     # fill in estimates where missing after pivot, this makes sure we 
