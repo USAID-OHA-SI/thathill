@@ -1,10 +1,9 @@
-# AUTHOR:   K. Srikanth | USAID
+# AUTHOR:   K. Srikanth, J. Hoehner | USAID
 # PURPOSE:  explore MER Peds VLS rates
 # REF ID:   e410ba62 
 # LICENSE:  MIT
-# DATE:     2022-11-22
-# UPDATED:
-# Note: Genie UGA filters to TX_CURR and PVLS for USAID
+# DATE:     2023-01-06
+# UPDATED: 
 
 # DEPENDENCIES ------------------------------------------------------------
 
@@ -21,7 +20,6 @@ library(glue)
 library(readxl)
 library(googlesheets4)
 
-
 # GLOBAL VARIABLES --------------------------------------------------------
 
 # SI specific paths/functions  
@@ -32,22 +30,19 @@ data_folder <- "Data/"
 
 #get filepath
 msd_path <- data_folder %>% 
-  return_latest("MER_Structured_Datasets_PSNU_IM_FY21-23_20230210_v1_1_Uganda")
-
+  return_latest("Genie-SiteByIMs-Uganda-Daily-2022-11-22")
 
 #store metadata
 get_metadata(msd_path, caption_note = "Created by: OHA SI Team
              LMA Presentation ATD Meeting 11-28-2022")
 
-
 ref_id <- "e410ba62"
 
 # IMPORT ------------------------------------------------------------------
 
-
 #read MSD
 df_msd <- msd_path %>% 
-  read_psd()
+  read_msd()
 
 # MUNGE -------------------------------------------------------------------
 
@@ -55,15 +50,12 @@ df_viz_snu <- df_msd %>%
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-   # fiscal_year == metadata$curr_fy,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
-    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
-  ) %>% 
- # filter(fiscal_year == metadata$curr_fy) %>% 
+    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")) %>% 
+  filter(fiscal_year == 2022) %>% 
   group_by(fiscal_year, funding_agency, snu1, indicator) %>% 
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
-  filter(fiscal_year != 2021) %>% 
   reshape_msd() %>% 
   select(-period_type) %>% 
   pivot_wider(names_from = indicator, values_from = value) %>% 
@@ -82,12 +74,15 @@ df_age_viz <- df_msd %>%
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-    #fiscal_year == metadata$curr_fy,
+    #fiscal_year == 2022,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
-    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
-  ) %>% 
+    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus"), 
+    age_2019 != "<01") %>% 
   group_by(fiscal_year, funding_agency, indicator, age_2019) %>% 
+  mutate(age_2019 = if_else(age_2019 %in% c("15-19", "20-24", "25-29", "30-34", 
+                                            "35-39", "40-44", "45-49", "50+"), 
+                            trendscoarse, age_2019)) %>%
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
   reshape_msd() %>% 
   select(-period_type) %>% 
@@ -99,25 +94,24 @@ df_age_viz <- df_msd %>%
   group_by(period, funding_agency, age_2019) %>% 
   summarise(across(starts_with("TX"), sum, na.rm = T), .groups = "drop") %>% 
   mutate(VLC = TX_PVLS_D / TX_CURR_LAG2,
-         VLS = TX_PVLS/TX_PVLS_D) %>% 
-  filter(
-    #period == metadata$curr_pd,
-    age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19"))
-
+         VLS = TX_PVLS/TX_PVLS_D)
 
 df_all <- df_msd %>% 
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-    fiscal_year %in% c(2022, 2023),
+    fiscal_year == 2022,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
-    standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")
-  ) %>% 
+     standardizeddisaggregate %in% c("Age/Sex/HIVStatus", 
+                                     "Age/Sex/Indication/HIVStatus"), 
+  age_2019 != "<01") %>% 
   group_by(fiscal_year, funding_agency, snu1, indicator, age_2019) %>% 
+  mutate(age_2019 = if_else(age_2019 %in% c("15-19", "20-24", "25-29", "30-34", 
+                                            "35-39", "40-44", "45-49", "50+"), 
+                            trendscoarse, age_2019)) %>%
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
-  reshape_msd() %>% 
-  select(-period_type) %>% 
+  reshape_msd(include_type = FALSE) %>% 
   pivot_wider(names_from = indicator, values_from = value) %>% 
   group_by(funding_agency, snu1, age_2019) %>% 
   mutate(TX_CURR_LAG2 = lag(TX_CURR, 2, order_by = period)) %>% 
@@ -126,14 +120,9 @@ df_all <- df_msd %>%
   group_by(period, funding_agency, snu1, age_2019) %>% 
   summarise(across(starts_with("TX"), sum, na.rm = T), .groups = "drop") %>% 
   mutate(VLC = TX_PVLS_D / TX_CURR_LAG2,
-         VLS = TX_PVLS/TX_PVLS_D) %>% 
-  filter(
-    #period == metadata$curr_pd,
-    age_2019 %in% c("<01", "01-04", "05-09", "10-14", "15-19"))
-
+         VLS = TX_PVLS/TX_PVLS_D)
 
 # VIZ -------------------------------------------------------------
-
 
 # Small multiples 
 
@@ -181,18 +170,16 @@ df_age_viz %>%
 # dumbbells for comparison by Q3 and q4 across age and SNU
 
 pvls_num <- df_all %>% 
-  filter(period %in% c("FY23Q1", "FY22Q4")) %>% 
+  filter(period %in% c("FY22Q3", "FY22Q4")) %>% 
   select(c(period, funding_agency, snu1, age_2019, TX_PVLS)) 
 
 df_all %>% 
-  filter(period %in% c("FY23Q1", "FY22Q4"),
-         age_2019 != "<01") %>% 
-  #mutate(VLS = ifelse(age_2019 == "<01", NA, VLS)) %>% 
+  filter(period %in% c("FY22Q3", "FY22Q4")) %>% 
   select(c(period, funding_agency, snu1, age_2019, VLS)) %>% 
   pivot_wider(names_from= period, values_from = VLS) %>% 
-  mutate(fill_color = ifelse(`FY23Q1` < `FY22Q4`, "#DD052A", "#009EE3")) %>%
-  pivot_longer(`FY22Q4`:`FY23Q1`, names_to = "period", values_to = "VLS") %>% 
-  mutate(fill_color = ifelse(period == "FY22Q4", trolley_grey_light, fill_color)) %>% 
+  mutate(fill_color = ifelse(`FY22Q4` < `FY22Q3`, "#DD052A", "#009EE3")) %>%
+  pivot_longer(`FY22Q3`:`FY22Q4`, names_to = "period", values_to = "VLS") %>% 
+  mutate(fill_color = ifelse(period == "FY22Q3", trolley_grey_light, fill_color)) %>% 
   left_join(pvls_num, by = c("period", "funding_agency", "snu1", "age_2019")) %>% 
   ggplot(aes(VLS, age_2019)) +
   geom_path(color = "gray50") +
@@ -214,54 +201,51 @@ df_all %>%
   labs(y = NULL,
        title = glue("Across most SNUs and age groups, viral load suppression decreased for CLHIV from FY22Q3 to FY22Q$" %>% toupper()),
        #subtitle = "Uganda COP22 DSD Analysis | USAID",
-       caption = glue("{metadata$caption}")
-  ) +
+       caption = glue("{metadata$caption} | 
+                      Note that children <01 year of age have been omitted due to low TX_CURR")) +
   theme(
     panel.grid.major.y = element_blank(),
     #axis.text.x = element_blank(),
-    plot.title = element_markdown()
-  )
+    plot.title = element_markdown())
 
-si_save("Graphics/03_vls_by_age_snu_FY23Q1.svg")  
-  
-
+si_save("Graphics/03_vls_by_age_snu.svg")  
 
 # _--------------------------------------------
 
-# # Creates  Small multiples by SNU 
-# ggplot(data = df_all) +
-#   geom_point(mapping = aes(x = age_2019, y = VLS ,col= period)) +
-#   facet_wrap(~snu1) +
-#   si_style_xgrid() +
-#   labs(y = NULL,
-#        title = "USAID Uganda TX_ PVLS Trends in FY22",
-#        subtitle = "TX_PVLS declined <1 - 19 age bands",
-#        caption = " TX_ PVLS Trends
-#            Source: MSD FY22Q4, 23 Nov 2022")
-# 
-# ggplot(data = df_all) +
-#   geom_point(mapping = aes(x = period, y = VLS ,col= age_2019)) +
-#   facet_wrap(~snu1) +
-#   si_style_xgrid() +
-#   labs(y = NULL,
-#        title = "USAID Uganda TX_ PVLS Trends in FY22",
-#        subtitle = "TX_PVLS declined <1 - 19 age bands",
-#        caption = " TX_ PVLS Trends
-#            Source: MSD FY22Q4, 23 Nov 2022")
-# 
-# 
-# ggplot(data = df_all,
-#        mapping = aes(x = period, y = VLS, col = age_2019)) +
-#   geom_line(mapping = aes(group = age_2019),
-#             alpha =.9)+
-#   #geom_point(alpha = .9) 
-#   facet_wrap(~snu1) +
-#   #si_style_xgrid() +
-#   labs(y = NULL,
-#        title = "USAID Uganda TX_ PVLS Trends in FY22",
-#        subtitle = "TX_PVLS declined <1 - 19 age bands",
-#        caption = " TX_ PVLS Trends
-#            Source: MSD FY22Q4, 23 Nov 2022")
+# Creates  Small multiples by SNU 
+ggplot(data = df_all) +
+  geom_point(mapping = aes(x = age_2019, y = VLS ,col= period)) +
+  facet_wrap(~snu1) +
+  si_style_xgrid() +
+  labs(y = NULL,
+       title = "USAID Uganda TX_ PVLS Trends in FY22",
+       subtitle = "TX_PVLS declined <1 - 19 age bands",
+       caption = " TX_ PVLS Trends
+           Source: MSD FY22Q4, 23 Nov 2022")
+
+ggplot(data = df_all) +
+  geom_point(mapping = aes(x = period, y = VLS ,col= age_2019)) +
+  facet_wrap(~snu1) +
+  si_style_xgrid() +
+  labs(y = NULL,
+       title = "USAID Uganda TX_ PVLS Trends in FY22",
+       subtitle = "TX_PVLS declined <1 - 19 age bands",
+       caption = " TX_ PVLS Trends
+           Source: MSD FY22Q4, 23 Nov 2022")
+
+
+ggplot(data = df_all,
+       mapping = aes(x = period, y = VLS, col = age_2019)) +
+  geom_line(mapping = aes(group = age_2019),
+            alpha =.9)+
+  #geom_point(alpha = .9) 
+  facet_wrap(~snu1) +
+  #si_style_xgrid() +
+  labs(y = NULL,
+       title = "USAID Uganda TX_ PVLS Trends in FY22",
+       subtitle = "TX_PVLS declined <1 - 19 age bands",
+       caption = " TX_ PVLS Trends
+           Source: MSD FY22Q4, 23 Nov 2022")
   
   
   
