@@ -46,8 +46,8 @@
 # IMPORT ------------------------------------------------------------------
   
 df_tool <- data_folder %>% 
-    return_latest("CALHIV") %>% 
-    read_xlsx(sheet = "Merged Clean datasheet") %>% 
+    return_latest("CALHIV _ Audit tool Raw data_Aug 29") %>% 
+    read_xlsx() %>% 
     janitor::clean_names()
   
 mfl <- data_folder %>% 
@@ -60,7 +60,18 @@ df_crosswalk <- read_sheet(g_id) %>%
 
 #read MSD
 df_msd <- msd_path %>% 
-  read_msd()
+  read_psd()
+
+msd_sites <- df_msd %>% 
+  filter(fiscal_year == 2023,
+         funding_agency == "USAID") %>% 
+  distinct(fiscal_year, sitename, facilityuid)
+
+
+df_tool %>% 
+  left_join(msd_sites, by = c("facility_name" = "sitename")) %>% 
+  filter(is.na(facilityuid)) %>% 
+    distinct(facility_name)
 
 # MUNGE -------------------------------------------------------------------
 
@@ -69,18 +80,28 @@ df_msd <- msd_path %>%
 
 misaligned_facilities <- df_tool %>% 
   left_join(mfl %>% select(`DATIM HF Name`, `DATIM ID`, `DATIM Region`, `DATIM District`, `DATIM Subcounty`),
-            by = c("facility_name" = "DATIM HF Name")) %>% view() 
+            by = c("facility_name" = "DATIM HF Name")) %>%
   filter(is.na(`DATIM ID`)) %>% 
   distinct(facility_name)
   
   
   df_merge <- df_tool %>% 
+  #   left_join(df_crosswalk, by = c("facility_name" = "tool_facility_name")) %>% 
+  #   mutate(new_name = ifelse(is.na(mfl_facility_name), facility_name, mfl_facility_name)) %>% 
+  #   left_join(mfl %>% select(`DATIM HF Name`, `DATIM ID`, `DATIM Region`, `DATIM District`, `DATIM Subcounty`),
+  #             by = c("new_name" = "DATIM HF Name")) %>%  
+  # filter(!is.na(`DATIM ID`)) %>% 
+    select(region, district, facility_name, age, vls_1000)
+  
+  
+  df_tool %>% 
     left_join(df_crosswalk, by = c("facility_name" = "tool_facility_name")) %>% 
     mutate(new_name = ifelse(is.na(mfl_facility_name), facility_name, mfl_facility_name)) %>% 
     left_join(mfl %>% select(`DATIM HF Name`, `DATIM ID`, `DATIM Region`, `DATIM District`, `DATIM Subcounty`),
-              by = c("new_name" = "DATIM HF Name")) %>%  
-  filter(!is.na(`DATIM ID`)) %>% 
-    select(region, district, facility_name, age_dependent_on_column_k, vls, new_name, starts_with("DATIM"))
+              by = c("new_name" = "DATIM HF Name")) %>% 
+    filter(is.na(`DATIM ID`)) %>% 
+    distinct(facility_name)
+  
   
   #get distinct TX_CURR
   
@@ -90,7 +111,7 @@ misaligned_facilities <- df_tool %>%
     left_join(mfl %>% select(`DATIM HF Name`, `DATIM ID`, `DATIM Region`, `DATIM District`, `DATIM Subcounty`),
               by = c("new_name" = "DATIM HF Name")) %>%  
     filter(!is.na(`DATIM ID`)) %>% 
-    distinct(art_hiv_clinic_no, sex, age_dependent_on_column_k, weight_kg, date_of_birth)
+    distinct(art_no)
   
   df_snu_audit <- df_merge %>%
     filter(vls %in% c("N", "Y")) %>% 
@@ -100,15 +121,15 @@ misaligned_facilities <- df_tool %>%
            audit_vls = Y/total)
   
   df_age_audit <- df_merge %>%
-    rename(age_2019 = age_dependent_on_column_k) %>% 
+    rename(age_2019 = age) %>% 
     mutate(age_band = case_when(age_2019 < 1 ~ "<01",
                                 age_2019 >= 1 & age_2019 < 5 ~ "01-04",
                                 age_2019 >= 5 & age_2019 < 10 ~ "05-09",
                                 age_2019 >= 10 & age_2019 < 15 ~ "10-14",
                                 age_2019 >= 15 & age_2019 < 20 ~ "15-19")) %>% 
-    filter(vls %in% c("N", "Y")) %>% 
-    count(age_band, vls) %>% 
-    pivot_wider(names_from = vls, values_from = n) %>% 
+    filter(vls_1000 %in% c("N", "Y")) %>% 
+    count(age_band, vls_1000) %>% 
+    pivot_wider(names_from = vls_1000, values_from = n) %>% 
     mutate(total = N + Y,
            audit_vls = Y/total)
   
@@ -216,10 +237,22 @@ misaligned_facilities <- df_tool %>%
          caption = glue("{metadata$caption}"))
   
   si_save("Graphics/01_vls_patient_tool_snu.svg")
+  
+  df_age_viz %>% 
+    filter(period == "FY23Q3") %>% 
+    group_by(period, funding_agency) %>% 
+    summarise(across(starts_with("TX_CURR"), sum, na.rm = T), .groups = "drop")
+  
+  df_age_audit %>% 
+    filter(!is.na(age_band)) %>% 
+    #group_by(period, funding_agency) %>% 
+    summarise(across(starts_with("Y"), sum, na.rm = T), .groups = "drop")
+    
 
   df_age_viz %>% 
     left_join(df_age_audit %>% select(age_band, audit_vls), by = c("age_2019" = "age_band")) %>%
-    mutate(audit_vls = ifelse(period %in% c("FY22Q1", "FY22Q2"), NA, audit_vls)) %>% 
+    filter(age_2019 != "<01") %>% 
+    mutate(audit_vls = ifelse(period %in% c("FY23Q1"), NA, audit_vls)) %>% 
     ggplot(aes(period, VLS, group = age_2019, color = scooter_med, fill = scooter_med)) +
     geom_area(alpha = .4, size = .9, position = "identity") +
     geom_area(aes(y = audit_vls), fill = "#8AB75E", color = "#8AB75E", alpha = .4) +
@@ -236,10 +269,10 @@ misaligned_facilities <- df_tool %>%
     si_style_ygrid() +
     coord_cartesian(clip = "off") +
     labs(x = NULL, y = NULL,
-         title = glue("USAID has seen declines in viral load suppression in FY22 among CLHIV, with particular fluctuation in the <1 age band" %>% toupper()),
-         subtitle = "CHLIV from <1 to 19 years of age",
+         title = glue("USAID has seen gradual increases in viral load suppression for children, in alignment with signals from the patient audit tool" %>% toupper()),
+         subtitle = "CHLIV from 1 to 19 years of age",
          caption = glue("{metadata$caption}"))
 
-  si_save("Graphics/02_vls_patient_tool_age.svg")
+  si_save("Graphics/02_vls_patient_tool_age_FY23Q3.svg")
   
   
