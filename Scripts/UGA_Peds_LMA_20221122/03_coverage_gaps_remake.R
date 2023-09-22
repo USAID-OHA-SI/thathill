@@ -76,11 +76,38 @@ df_viz <- df_tool %>%
   ungroup() %>% 
   filter(answer == "Y") %>% 
   distinct() %>% 
+  select(-c(answer, n, total)) 
+
+# %>% 
+#   pivot_wider(names_from = "region", values_from = "pct")
+
+df_usaid_total <- df_tool %>% 
+  mutate(region = case_when(region %in% c("JInja_Region", "jinja_Region") ~ "Jinja_Region",
+                            region %in% c("lira_Region") ~ "Lira_Region",
+                            region %in% c("mbale_Region") ~ "Mbale_Region",
+                            region %in% c("mbarara_Region") ~ "Mbarara_Region",
+                            region %in% c("moroto_Region") ~ "Moroto_Region",
+                            region %in% c("uPMB_LSDA_Region", "upMB_LSDA_Region", "upmB_LSDA_Region") ~ "UPMB_LSDA_Region",
+                            TRUE ~ region)) %>% 
+  select(-c(district, region, facility_name, art_no, sex, age, missing_data, all_services)) %>% 
+  pivot_longer(cols = c(indext_testing_children_siblings:vls_1000), names_to = "indicator", values_to = 'answer') %>%
+  mutate(answer = ifelse(answer == "y", "Y", answer)) %>% 
+  count(indicator, answer) %>% 
+  filter(answer != "NA") %>% 
+  group_by(indicator) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(pct = n / total) %>% 
+  ungroup() %>% 
+  filter(answer == "Y") %>% 
+  distinct() %>% 
   select(-c(answer, n, total)) %>% 
-  pivot_wider(names_from = "region", values_from = "pct")
+  mutate(region = "USAID Total") %>% 
+  select(region, indicator, pct)
 
 
 df_viz %>% 
+  rbind(df_usaid_total) %>% 
+#  left_join(df_usaid_total, by = "indicator") %>% 
   mutate(indicator = fct_relevel(indicator, c("community_contacting", "chw_attachment", "ovc_enrolement",
                                               "ovc_screening", "appt_keeping", "mmd_3", "tb_screening", "tpt",
                                               "iac_initiation", "dtg", "vls_1000","vl_bleeding", "vl_coverage", 
