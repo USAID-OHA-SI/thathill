@@ -30,7 +30,7 @@ data_folder <- "Data/"
 
 #get filepath
 msd_path <- data_folder %>% 
-  return_latest("Genie-SiteByIMs-Uganda-Daily-2022-11-22")
+  return_latest("MER_Structured_Datasets_Site_IM_FY21-24_20230811_v1_1_Uganda.zip")
 
 #store metadata
 get_metadata(msd_path, caption_note = "Created by: OHA SI Team
@@ -42,7 +42,7 @@ ref_id <- "e410ba62"
 
 #read MSD
 df_msd <- msd_path %>% 
-  read_msd()
+  read_psd()
 
 # MUNGE -------------------------------------------------------------------
 
@@ -53,7 +53,7 @@ df_viz_snu <- df_msd %>%
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
     standardizeddisaggregate %in% c("Age/Sex/HIVStatus", "Age/Sex/Indication/HIVStatus")) %>% 
-  filter(fiscal_year == 2022) %>% 
+  filter(fiscal_year == 2023) %>% 
   group_by(fiscal_year, funding_agency, snu1, indicator) %>% 
   summarise(across(starts_with("qtr"), sum, na.rm = T), .groups = "drop") %>% 
   reshape_msd() %>% 
@@ -100,7 +100,7 @@ df_all <- df_msd %>%
   clean_indicator() %>% 
   clean_agency() %>% 
   filter(
-    fiscal_year == 2022,
+    fiscal_year == 2023,
     funding_agency == "USAID",
     indicator %in% c("TX_CURR", "TX_PVLS_D", "TX_PVLS"),
      standardizeddisaggregate %in% c("Age/Sex/HIVStatus", 
@@ -170,16 +170,16 @@ df_age_viz %>%
 # dumbbells for comparison by Q3 and q4 across age and SNU
 
 pvls_num <- df_all %>% 
-  filter(period %in% c("FY22Q3", "FY22Q4")) %>% 
+  filter(period %in% c("FY23Q3", "FY23Q2")) %>% 
   select(c(period, funding_agency, snu1, age_2019, TX_PVLS)) 
 
 df_all %>% 
-  filter(period %in% c("FY22Q3", "FY22Q4")) %>% 
+  filter(period %in% c("FY23Q3", "FY23Q2")) %>% 
   select(c(period, funding_agency, snu1, age_2019, VLS)) %>% 
   pivot_wider(names_from= period, values_from = VLS) %>% 
-  mutate(fill_color = ifelse(`FY22Q4` < `FY22Q3`, "#DD052A", "#009EE3")) %>%
-  pivot_longer(`FY22Q3`:`FY22Q4`, names_to = "period", values_to = "VLS") %>% 
-  mutate(fill_color = ifelse(period == "FY22Q3", trolley_grey_light, fill_color)) %>% 
+  mutate(fill_color = ifelse(`FY23Q3` < `FY23Q2`, "#DD052A", "#009EE3")) %>%
+  pivot_longer(`FY23Q2`:`FY23Q3`, names_to = "period", values_to = "VLS") %>% 
+  mutate(fill_color = ifelse(period == "FY23Q2", trolley_grey_light, fill_color)) %>% 
   left_join(pvls_num, by = c("period", "funding_agency", "snu1", "age_2019")) %>% 
   ggplot(aes(VLS, age_2019)) +
   geom_path(color = "gray50") +
